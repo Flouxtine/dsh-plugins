@@ -11,4 +11,4 @@ github:zhangzh_anch/dsh-plugins#main&path:/quick-notes
 
 ## Bundles
 
-- `quick-notes` — a left-sidebar Quick Notes panel (`@local/quick-notes`).
+- `quick-notes` — a left-sidebar to-do list panel (`@local/quick-notes`).
