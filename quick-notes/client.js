@@ -10,7 +10,14 @@ window.__ModuleLoader__.load({
     const LEGACY_TASKS_KEY = 'dsh.local.quick-notes.tasks';
     const LEGACY_NOTE_KEY = 'dsh.local.quick-notes.text';
 
-    const VIEWS = ['all', 'today', 'upcoming', 'important', 'completed'];
+    /** Todoist's signature accent, taken from the theme's error colour. */
+    const ACCENT = 'var(--dsw-alias-state-error-primary)';
+    const FILTERS = [
+      { key: 'today', icon: 'sun', labelKey: 'today' },
+      { key: 'upcoming', icon: 'calendar', labelKey: 'upcoming' },
+      { key: 'important', icon: 'star', labelKey: 'important' },
+      { key: 'completed', icon: 'checkCircle', labelKey: 'completed' },
+    ];
     const PRIORITY_COLORS = [
       'var(--dsw-alias-state-error-primary)',
       'var(--dsw-alias-state-warn-primary)',
@@ -18,11 +25,11 @@ window.__ModuleLoader__.load({
       'var(--dsw-alias-state-idle-primary)',
     ];
     const PRIORITY_KEYS = ['priority1', 'priority2', 'priority3', 'priority4'];
-    const PROJECT_COLORS = [
+    const PALETTE = [
+      'var(--dsw-alias-state-error-primary)',
+      'var(--dsw-alias-state-warn-primary)',
       'var(--dsw-alias-brand-primary)',
       'var(--dsw-alias-state-success-primary)',
-      'var(--dsw-alias-state-warn-primary)',
-      'var(--dsw-alias-state-error-primary)',
       'var(--dsw-alias-state-idle-primary)',
     ];
     const DUE_QUICK = ['today', 'tomorrow', 'nextweek'];
@@ -38,124 +45,122 @@ window.__ModuleLoader__.load({
     };
     const OLD_PRIORITY_MAP = { 0: 4, 1: 4, 2: 3, 3: 2, 4: 1 };
     const EMPTY_KEYS = {
-      all: ['emptyAllTitle', 'emptyAllText'],
       today: ['emptyTodayTitle', 'emptyTodayText'],
       upcoming: ['emptyUpcomingTitle', 'emptyUpcomingText'],
       important: ['emptyImportantTitle', 'emptyImportantText'],
       completed: ['emptyCompletedTitle', 'emptyCompletedText'],
+      project: ['emptyProjectTitle', 'emptyProjectText'],
+      label: ['emptyLabelTitle', 'emptyLabelText'],
     };
 
     const CSS = `
-.todo-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-size: 14px; }
+.todo-root { flex: 1 1 auto; min-height: 0; display: flex; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-size: 14px; }
 .todo-root *, .todo-root *::before, .todo-root *::after { box-sizing: border-box; }
-.todo-header { padding: 18px 24px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
-.todo-titleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.todo-title { margin: 0; font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.01em; }
-.todo-subtitle { margin: 3px 0 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
-.todo-progress { display: flex; align-items: center; gap: 8px; flex: none; }
-.todo-progressText { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
-.todo-body { flex: 1 1 auto; min-height: 0; display: flex; }
-.todo-rail { width: 188px; flex: none; border-right: 1px solid var(--dsw-alias-border-l1); overflow-y: auto; padding: 8px 8px 12px; }
-.todo-railSection { padding: 6px 8px 4px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); letter-spacing: 0.04em; text-transform: uppercase; }
-.todo-railItem { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px; padding: 5px 8px; border-radius: 7px; cursor: pointer; text-align: left; }
+.todo-rail { width: 216px; flex: none; border-right: 1px solid var(--dsw-alias-border-l1); overflow-y: auto; padding: 14px 10px 16px; }
+.todo-brand { display: flex; align-items: center; gap: 8px; padding: 0 8px 12px; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+.todo-brandMark { width: 18px; height: 18px; border-radius: 5px; background: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-bg-base); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.todo-railSection { padding: 12px 8px 4px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); letter-spacing: 0.06em; text-transform: uppercase; }
+.todo-railItem { display: flex; align-items: center; gap: 9px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13.5px; line-height: 22px; padding: 5px 8px; border-radius: 8px; cursor: pointer; text-align: left; }
 .todo-railItem:hover { background: var(--dsw-alias-bg-layer-1); }
-.todo-railItemActive { background: var(--dsw-alias-bg-layer-2); font-weight: 500; }
-.todo-railDot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.todo-railIcon { width: 15px; height: 15px; flex: none; display: inline-flex; color: var(--dsw-alias-label-secondary); }
+.todo-railItemActive { background: var(--dsw-alias-bg-layer-2); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent); font-weight: 550; }
+.todo-railItemActive .todo-railIcon { color: var(--dsw-alias-state-error-primary); }
+.todo-railIcon { width: 16px; height: 16px; flex: none; display: inline-flex; color: var(--dsw-alias-label-secondary); }
+.todo-railDot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .todo-railName { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.todo-railCount { font-size: 11px; color: var(--dsw-alias-label-secondary); flex: none; }
+.todo-railCount { font-size: 11.5px; color: var(--dsw-alias-label-secondary); flex: none; }
 .todo-railMenu { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 14px; line-height: 16px; padding: 0 2px; border-radius: 4px; cursor: pointer; opacity: 0; flex: none; }
 .todo-railItem:hover .todo-railMenu { opacity: 1; }
-.todo-railAdd { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 20px; padding: 5px 8px; border-radius: 7px; cursor: pointer; text-align: left; }
+.todo-railAdd { display: flex; align-items: center; gap: 9px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13.5px; line-height: 22px; padding: 5px 8px; border-radius: 8px; cursor: pointer; text-align: left; }
 .todo-railAdd:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
-.todo-railInput { flex: 1 1 auto; min-width: 0; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 13px; line-height: 20px; padding: 4px 6px; outline: none; }
+.todo-railInput { flex: 1 1 auto; min-width: 0; border: 1px solid var(--dsw-alias-state-error-primary); border-radius: 7px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 13px; line-height: 20px; padding: 4px 8px; outline: none; }
 .todo-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.todo-views { display: flex; gap: 4px; padding: 10px 16px 6px; overflow-x: auto; scrollbar-width: none; }
-.todo-views::-webkit-scrollbar { display: none; }
-.todo-view { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: 999px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
-.todo-view:hover { background: var(--dsw-alias-bg-layer-2); }
-.todo-viewActive { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); font-weight: 500; }
-.todo-viewCount { font-size: 11px; color: var(--dsw-alias-label-secondary); }
-.todo-labelFilter { display: flex; align-items: center; gap: 8px; margin: 0 16px 4px; padding: 3px 8px; border-radius: 6px; background: var(--dsw-alias-bg-layer-1); font-size: 12px; color: var(--dsw-alias-label-secondary); }
-.todo-labelFilterText { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.todo-labelFilterClear { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 14px; line-height: 16px; padding: 0 2px; cursor: pointer; }
-.todo-add { padding: 6px 16px 8px; }
-.todo-addRow { display: flex; align-items: center; gap: 8px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); padding: 3px 3px 3px 12px; }
-.todo-addRow:focus-within { border-color: var(--dsw-alias-brand-primary); }
-.todo-addInput { flex: 1 1 auto; min-width: 0; border: none; background: transparent; color: inherit; font: inherit; font-size: 14px; line-height: 32px; outline: none; }
+.todo-mainHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px 10px; }
+.todo-mainTitle { margin: 0; font-size: 21px; font-weight: 650; line-height: 28px; letter-spacing: -0.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-mainCount { font-size: 13px; color: var(--dsw-alias-label-secondary); flex: none; }
+.todo-progress { display: flex; align-items: center; gap: 8px; flex: none; }
+.todo-progressText { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.todo-add { padding: 0 24px 8px; }
+.todo-addRow { display: flex; align-items: center; gap: 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-layer-1); padding: 4px 4px 4px 14px; }
+.todo-addRow:focus-within { border-color: var(--dsw-alias-state-error-primary); background: var(--dsw-alias-bg-base); }
+.todo-addIcon { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--dsw-alias-border-l2); display: inline-flex; align-items: center; justify-content: center; color: var(--dsw-alias-label-secondary); flex: none; }
+.todo-addInput { flex: 1 1 auto; min-width: 0; border: none; background: transparent; color: inherit; font: inherit; font-size: 15px; line-height: 34px; outline: none; }
 .todo-addInput::placeholder { color: var(--dsw-alias-label-secondary); }
-.todo-addButton { border: none; border-radius: 8px; background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); font: inherit; font-size: 13px; line-height: 20px; padding: 6px 14px; cursor: pointer; }
+.todo-addButton { border: none; border-radius: 9px; background: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-bg-base); font: inherit; font-size: 13.5px; font-weight: 550; line-height: 20px; padding: 7px 16px; cursor: pointer; }
 .todo-addButton:disabled { opacity: 0.45; cursor: default; }
-.todo-hint { margin: 6px 0 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+.todo-hint { margin: 7px 0 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 .todo-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.todo-task { display: flex; align-items: flex-start; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.todo-task { display: flex; align-items: flex-start; gap: 11px; padding: 10px 24px 10px 21px; border-bottom: 1px solid var(--dsw-alias-border-l1); border-left: 3px solid transparent; }
 .todo-task:hover { background: var(--dsw-alias-bg-layer-1); }
-.todo-check { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--dsw-alias-border-l2); background: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; margin-top: 1px; transition: background 0.15s ease, border-color 0.15s ease; }
-.todo-check:hover { border-color: var(--dsw-alias-brand-primary); }
-.todo-checkDone { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); }
+.todo-check { flex: none; width: 21px; height: 21px; border-radius: 50%; border: 1.6px solid var(--dsw-alias-border-l2); background: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; margin-top: 1px; transition: background 0.15s ease, border-color 0.15s ease; }
+.todo-check:hover { border-color: var(--dsw-alias-state-error-primary); }
+.todo-checkDone { background: var(--dsw-alias-state-error-primary); border-color: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-bg-base); }
 .todo-checkDone svg { animation: todo-pop 0.18s ease-out; }
 @keyframes todo-pop { 0% { transform: scale(0.5); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
 .todo-body { flex: 1 1 auto; min-width: 0; }
-.todo-text { font-size: 14px; line-height: 22px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.todo-text { font-size: 15px; line-height: 22px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .todo-textDone { color: var(--dsw-alias-label-secondary); text-decoration: line-through; }
-.todo-edit { width: 100%; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 14px; line-height: 22px; padding: 2px 6px; outline: none; }
-.todo-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
-.todo-subProgress { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-.todo-labels { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.todo-label { border: none; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font: inherit; font-size: 11px; line-height: 16px; padding: 1px 7px; cursor: pointer; }
-.todo-label:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
-.todo-labelActive { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); }
-.todo-repeat { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-.todo-subs { margin-top: 2px; }
+.todo-edit { width: 100%; border: 1px solid var(--dsw-alias-state-error-primary); border-radius: 8px; background: var(--dsw-alias-bg-base); color: inherit; font: inherit; font-size: 15px; line-height: 22px; padding: 2px 8px; outline: none; }
+.todo-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
+.todo-subProgress { font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+.todo-subBar { height: 3px; border-radius: 2px; background: var(--dsw-alias-bg-layer-2); margin-top: 5px; overflow: hidden; }
+.todo-subBarFill { height: 100%; border-radius: 2px; background: var(--dsw-alias-state-error-primary); }
+.todo-labels { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.todo-label { display: inline-flex; align-items: center; gap: 4px; border: none; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); font: inherit; font-size: 11.5px; line-height: 17px; padding: 1px 8px; cursor: pointer; }
+.todo-label:hover { background: var(--dsw-alias-bg-layer-1); }
+.todo-labelActive { background: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-bg-base); }
+.todo-repeat { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+.todo-subs { margin-top: 3px; }
 .todo-sub { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
 .todo-subCheck { flex: none; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--dsw-alias-border-l2); background: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
-.todo-subCheck:hover { border-color: var(--dsw-alias-brand-primary); }
-.todo-subCheckDone { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); }
-.todo-subText { flex: 1 1 auto; min-width: 0; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.todo-subCheck:hover { border-color: var(--dsw-alias-state-error-primary); }
+.todo-subCheckDone { background: var(--dsw-alias-state-error-primary); border-color: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-bg-base); }
+.todo-subText { flex: 1 1 auto; min-width: 0; font-size: 13.5px; line-height: 20px; overflow-wrap: anywhere; }
 .todo-subTextDone { color: var(--dsw-alias-label-secondary); text-decoration: line-through; }
 .todo-subDelete { flex: none; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 14px; line-height: 16px; padding: 0 2px; cursor: pointer; opacity: 0; }
 .todo-task:hover .todo-subDelete { opacity: 1; }
-.todo-subAdd { display: flex; align-items: center; gap: 8px; padding: 3px 0 3px 23px; }
-.todo-subInput { flex: 1 1 auto; min-width: 0; border: none; background: transparent; color: inherit; font: inherit; font-size: 13px; line-height: 20px; outline: none; }
+.todo-subAdd { display: flex; align-items: center; gap: 8px; padding: 3px 0 3px 24px; }
+.todo-subInput { flex: 1 1 auto; min-width: 0; border: none; background: transparent; color: inherit; font: inherit; font-size: 13.5px; line-height: 20px; outline: none; }
 .todo-subInput::placeholder { color: var(--dsw-alias-label-secondary); }
-.todo-actions { display: flex; align-items: center; gap: 2px; flex: none; margin-top: 1px; }
-.todo-iconButton { display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+.todo-actions { display: flex; align-items: center; gap: 3px; flex: none; margin-top: 2px; }
+.todo-iconButton { display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12.5px; line-height: 18px; padding: 4px 7px; border-radius: 7px; cursor: pointer; }
 .todo-iconButton:hover { background: var(--dsw-alias-bg-layer-2); }
-.todo-dueToday { color: var(--dsw-alias-brand-primary); }
-.todo-dueOverdue { color: var(--dsw-alias-state-error-primary); }
+.todo-dueToday { color: var(--dsw-alias-state-error-primary); }
+.todo-dueOverdue { color: var(--dsw-alias-state-error-primary); font-weight: 550; }
 .todo-delete { opacity: 0; }
 .todo-task:hover .todo-delete { opacity: 1; }
-.todo-empty { padding: 48px 24px; text-align: center; }
-.todo-emptyTitle { font-size: 14px; line-height: 22px; color: var(--dsw-alias-label-primary); margin-bottom: 4px; }
-.todo-emptyText { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.todo-empty { padding: 56px 24px; text-align: center; }
+.todo-emptyMark { width: 44px; height: 44px; border-radius: 12px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; background: var(--dsw-alias-bg-layer-2); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); color: var(--dsw-alias-state-error-primary); }
+.todo-emptyTitle { font-size: 15px; line-height: 22px; color: var(--dsw-alias-label-primary); margin-bottom: 4px; }
+.todo-emptyText { font-size: 12.5px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .todo-popover { position: fixed; z-index: 1000; background: var(--dsw-alias-bg-overlay); border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; padding: 6px; }
-.todo-popoverRow { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px; padding: 6px 8px; border-radius: 6px; cursor: pointer; text-align: left; }
+.todo-popoverRow { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13.5px; line-height: 20px; padding: 6px 8px; border-radius: 7px; cursor: pointer; text-align: left; }
 .todo-popoverRow:hover { background: var(--dsw-alias-bg-layer-2); }
 .todo-popoverLabel { padding: 4px 8px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 .todo-popoverDivider { height: 1px; background: var(--dsw-alias-border-l1); margin: 4px 0; }
-.todo-dateInput { width: 100%; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 13px; line-height: 20px; padding: 5px 8px; margin: 4px 0; outline: none; }
-.todo-clear { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 12px; color: var(--dsw-alias-label-secondary); }
-.todo-clearButton { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; cursor: pointer; padding: 2px 6px; border-radius: 5px; }
+.todo-dateInput { width: 100%; border: 1px solid var(--dsw-alias-border-l2); border-radius: 7px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 13.5px; line-height: 20px; padding: 5px 8px; margin: 4px 0; outline: none; }
+.todo-clear { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
+.todo-clearButton { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12.5px; line-height: 18px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
 .todo-clearButton:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
 `;
 
     const dictionaries = {
       en: {
         panel: 'To-Do',
-        title: 'To-Do',
-        description: 'Projects, labels, priorities, recurring tasks and due dates — saved in this browser.',
+        brand: 'To-Do',
+        description: 'A Todoist-style task list with projects, labels and recurring tasks.',
+        filters: 'Filters',
+        projects: 'Projects',
+        labels: 'Labels',
         allProjects: 'All projects',
         inbox: 'Inbox',
-        projects: 'Projects',
         newProject: 'New project',
         newProjectPlaceholder: 'Project name',
         renameProject: 'Rename',
         deleteProject: 'Delete project (tasks move to Inbox)',
         projectMenu: 'Project menu',
         addPlaceholder: 'Add a task…',
-        add: 'Add',
+        add: 'Add task',
         quickAddHint: 'Quick add: !p1–!p4 priority · !today / !tomorrow / !nextweek / !monday due · @label · !everyday / !everyweek / !everymonth repeat',
-        all: 'All',
         today: 'Today',
         upcoming: 'Upcoming',
         important: 'Important',
@@ -175,7 +180,7 @@ window.__ModuleLoader__.load({
         repeat_weekly: 'Weekly',
         repeat_monthly: 'Monthly',
         repeat_weekdays: 'Every weekday',
-        subtaskProgress: '{done}/{total} subtasks',
+        subtaskProgress: '{done}/{total}',
         addSubtask: 'Add a subtask…',
         editHint: 'Double-click to edit',
         editPlaceholder: 'Task text',
@@ -186,9 +191,6 @@ window.__ModuleLoader__.load({
         clearCompleted: 'Clear completed',
         completedCount: '{count} completed',
         labelFilter: 'Label',
-        clearLabelFilter: 'Clear label filter',
-        emptyAllTitle: 'No tasks yet',
-        emptyAllText: 'Add your first task above.',
         emptyTodayTitle: 'Nothing due today',
         emptyTodayText: 'Enjoy the calm, or plan ahead.',
         emptyUpcomingTitle: 'Nothing scheduled',
@@ -197,23 +199,28 @@ window.__ModuleLoader__.load({
         emptyImportantText: 'Mark a task P1 or P2 to keep it here.',
         emptyCompletedTitle: 'Nothing completed yet',
         emptyCompletedText: 'Finished tasks will gather here.',
+        emptyProjectTitle: 'This project is empty',
+        emptyProjectText: 'Add a task to get started.',
+        emptyLabelTitle: 'No tasks with this label',
+        emptyLabelText: 'Add a @label while creating a task.',
       },
       zh: {
         panel: '待办事项',
-        title: '待办事项',
-        description: '项目、标签、优先级、重复任务与截止日期 —— 保存在当前浏览器。',
+        brand: '待办事项',
+        description: 'Todoist 风格任务清单：项目、标签与重复任务。',
+        filters: '筛选',
+        projects: '项目',
+        labels: '标签',
         allProjects: '所有项目',
         inbox: '收件箱',
-        projects: '项目',
         newProject: '新建项目',
         newProjectPlaceholder: '项目名称',
         renameProject: '重命名',
         deleteProject: '删除项目（任务移入收件箱）',
         projectMenu: '项目菜单',
         addPlaceholder: '添加一个任务…',
-        add: '添加',
+        add: '添加任务',
         quickAddHint: '快速添加：!p1–!p4 优先级 · !今天 / !明天 / !下周 / !周一 截止 · @标签 · !每天 / !每周 / !每月 重复',
-        all: '全部',
         today: '今天',
         upcoming: '即将到来',
         important: '重要',
@@ -233,7 +240,7 @@ window.__ModuleLoader__.load({
         repeat_weekly: '每周',
         repeat_monthly: '每月',
         repeat_weekdays: '每个工作日',
-        subtaskProgress: '{done}/{total} 子任务',
+        subtaskProgress: '{done}/{total}',
         addSubtask: '添加子任务…',
         editHint: '双击编辑',
         editPlaceholder: '任务内容',
@@ -244,9 +251,6 @@ window.__ModuleLoader__.load({
         clearCompleted: '清除已完成',
         completedCount: '已完成 {count} 项',
         labelFilter: '标签',
-        clearLabelFilter: '清除标签筛选',
-        emptyAllTitle: '还没有任务',
-        emptyAllText: '在上方添加你的第一个任务。',
         emptyTodayTitle: '今天没有到期任务',
         emptyTodayText: '享受这份清闲，或提前规划。',
         emptyUpcomingTitle: '还没有安排',
@@ -255,6 +259,10 @@ window.__ModuleLoader__.load({
         emptyImportantText: '把任务标为 P1 或 P2 就会出现在这里。',
         emptyCompletedTitle: '还没有已完成的事',
         emptyCompletedText: '完成的任务会汇总在这里。',
+        emptyProjectTitle: '这个项目还没有任务',
+        emptyProjectText: '添加一个任务开始吧。',
+        emptyLabelTitle: '没有带该标签的任务',
+        emptyLabelText: '创建任务时加上 @标签 即可。',
       },
     };
 
@@ -384,6 +392,15 @@ window.__ModuleLoader__.load({
       return result;
     }
 
+    /** A stable colour for a label, so the same label always looks the same. */
+    function labelColor(label) {
+      let hash = 0;
+      for (let index = 0; index < label.length; index += 1) {
+        hash = (hash * 31 + label.charCodeAt(index)) >>> 0;
+      }
+      return PALETTE[hash % PALETTE.length];
+    }
+
     /** The earlier Quick Notes text, imported once: every non-empty line becomes an open task. */
     function migrateLegacyNote() {
       let note;
@@ -481,15 +498,43 @@ window.__ModuleLoader__.load({
     }
 
     function CalendarIcon() {
-      return h('svg', { width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
         h('rect', { x: 2, y: 3, width: 12, height: 11, rx: 2, stroke: 'currentColor', strokeWidth: 1.2 }),
         h('path', { d: 'M2 6.5h12', stroke: 'currentColor', strokeWidth: 1.2 }),
         h('path', { d: 'M5 1.5v3M11 1.5v3', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round' }));
     }
 
+    function SunIcon() {
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('circle', { cx: 8, cy: 8, r: 3, stroke: 'currentColor', strokeWidth: 1.3 }),
+        h('path', { d: 'M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round' }));
+    }
+
+    function StarIcon() {
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('path', { d: 'M8 2l1.8 3.7 4.1.6-3 2.9.7 4.1L8 11.5l-3.6 1.8.7-4.1-3-2.9 4.1-.6z', stroke: 'currentColor', strokeWidth: 1.2, strokeLinejoin: 'round' }));
+    }
+
+    function CheckCircleIcon() {
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('circle', { cx: 8, cy: 8, r: 6.2, stroke: 'currentColor', strokeWidth: 1.3 }),
+        h('path', { d: 'M5.2 8.2l1.9 1.9 3.7-4', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+    }
+
+    function InboxIcon() {
+      return h('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('path', { d: 'M2.5 8.5h3l1 2h3l1-2h3M2.5 8.5L4 3.5h8l1.5 5v3.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+    }
+
+    function TagIcon({ color = 'currentColor' }) {
+      return h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('path', { d: 'M2.5 2.5h4.2l6 6-4.2 4.2-6-6z', stroke: color, strokeWidth: 1.3, strokeLinejoin: 'round' }),
+        h('circle', { cx: 5.2, cy: 5.2, r: 1, fill: color }));
+    }
+
     function PlusIcon() {
       return h('svg', { width: 12, height: 12, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
-        h('path', { d: 'M8 3v10M3 8h10', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' }));
+        h('path', { d: 'M8 3v10M3 8h10', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }));
     }
 
     function TrashIcon() {
@@ -502,9 +547,11 @@ window.__ModuleLoader__.load({
         h('path', { d: 'M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round' }));
     }
 
-    function InboxIcon() {
-      return h('svg', { width: 15, height: 15, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
-        h('path', { d: 'M2.5 8.5h3l1 2h3l1-2h3M2.5 8.5L4 3.5h8l1.5 5v3.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+    function FilterIcon({ name }) {
+      if (name === 'sun') return h(SunIcon);
+      if (name === 'calendar') return h(CalendarIcon);
+      if (name === 'star') return h(StarIcon);
+      return h(CheckCircleIcon);
     }
 
     function ProgressRing({ value }) {
@@ -514,7 +561,7 @@ window.__ModuleLoader__.load({
       return h('svg', { width: 28, height: 28, viewBox: '0 0 28 28', 'aria-hidden': true },
         h('circle', { cx: 14, cy: 14, r: radius, fill: 'none', stroke: 'var(--dsw-alias-bg-layer-2)', strokeWidth: 3 }),
         h('circle', {
-          cx: 14, cy: 14, r: radius, fill: 'none', stroke: 'var(--dsw-alias-brand-primary)', strokeWidth: 3,
+          cx: 14, cy: 14, r: radius, fill: 'none', stroke: 'var(--dsw-alias-state-error-primary)', strokeWidth: 3,
           strokeLinecap: 'round', strokeDasharray: `${circumference * clamped} ${circumference}`,
           transform: 'rotate(-90 14 14)',
         }));
@@ -558,15 +605,19 @@ window.__ModuleLoader__.load({
         : dueState === 'today' ? t('dueToday')
         : dueState === 'tomorrow' ? t('dueTomorrow')
         : `${Number(task.due.slice(5, 7))}/${Number(task.due.slice(8, 10))}`;
-      const dueClass = dueState === 'today' ? 'todo-iconButton todo-dueToday'
-        : dueState === 'overdue' ? 'todo-iconButton todo-dueOverdue' : 'todo-iconButton';
+      const dueClass = dueState === 'none' ? 'todo-iconButton'
+        : dueState === 'overdue' ? 'todo-iconButton todo-dueOverdue'
+        : 'todo-iconButton todo-dueToday';
       const submitSubtask = () => {
         const text = subDraft.trim();
         if (text === '') return;
         props.onAddSubtask(text);
         setSubDraft('');
       };
-      return h('div', { className: 'todo-task' }, [
+      return h('div', {
+        className: 'todo-task',
+        style: { borderLeftColor: PRIORITY_COLORS[task.priority - 1] },
+      }, [
         h('button', {
           type: 'button',
           className: task.done ? 'todo-check todo-checkDone' : 'todo-check',
@@ -595,14 +646,17 @@ window.__ModuleLoader__.load({
                 title: t('editHint'),
               }, task.text),
           h('div', { className: 'todo-meta' }, [
-            task.subtasks.length === 0 ? null : h('span', { className: 'todo-subProgress' }, t('subtaskProgress', { done: subDone, total: task.subtasks.length })),
+            task.subtasks.length === 0 ? null : h('span', { className: 'todo-subProgress' }, `${subDone}/${task.subtasks.length}`),
             task.repeat === null ? null : h('span', { className: 'todo-repeat' }, [h(RepeatIcon), h('span', {}, t(`repeat_${task.repeat}`))]),
+            task.labels.length === 0 ? null : h('span', { className: 'todo-labels' }, task.labels.map((label) => h('button', {
+              type: 'button', key: label, className: props.labelFilter === label ? 'todo-label todo-labelActive' : 'todo-label',
+              style: { color: labelColor(label) },
+              onClick: () => props.onToggleLabel(label),
+              title: `${t('labelFilter')}: ${label}`,
+            }, label))),
           ]),
-          task.labels.length === 0 ? null : h('div', { className: 'todo-labels' }, task.labels.map((label) => h('button', {
-            type: 'button', key: label, className: props.labelFilter === label ? 'todo-label todo-labelActive' : 'todo-label',
-            onClick: () => props.onToggleLabel(label),
-            title: `${t('labelFilter')}: ${label}`,
-          }, label))),
+          task.subtasks.length === 0 ? null : h('div', { className: 'todo-subBar' },
+            h('div', { className: 'todo-subBarFill', style: { width: `${(subDone / task.subtasks.length) * 100}%` } })),
           h('div', { className: 'todo-subs' }, task.subtasks.map((sub) => h('div', { key: sub.id, className: 'todo-sub' }, [
             h('button', {
               type: 'button',
@@ -648,8 +702,7 @@ window.__ModuleLoader__.load({
 
     function TodoPanel({ t }) {
       const [state, setState] = React.useState(loadState);
-      const [projectId, setProjectId] = React.useState('all');
-      const [view, setView] = React.useState('all');
+      const [selection, setSelection] = React.useState({ type: 'project', value: 'all' });
       const [draft, setDraft] = React.useState('');
       const [labelFilter, setLabelFilter] = React.useState(null);
       const [editingId, setEditingId] = React.useState(null);
@@ -665,14 +718,15 @@ window.__ModuleLoader__.load({
 
       const today = todayISO();
       const { projects, tasks } = state;
-      const projectTasks = projectId === 'all' ? tasks : tasks.filter((task) => task.projectId === projectId);
+      const labels = [...new Set(tasks.flatMap((task) => task.labels))].sort();
       const projectCount = (id) => tasks.filter((task) => task.projectId === id && !task.done).length;
+      const labelCount = (label) => tasks.filter((task) => task.labels.includes(label) && !task.done).length;
       const projectName = (project) => project.id === 'inbox' ? t('inbox') : project.name;
 
       const addTask = () => {
         const parsed = parseDraft(draft);
         if (parsed.text === '') return;
-        const targetProject = projectId === 'all' ? 'inbox' : projectId;
+        const targetProject = selection.type === 'project' && selection.value !== 'all' ? selection.value : 'inbox';
         setState((current) => ({
           ...current,
           tasks: [...current.tasks, {
@@ -729,9 +783,9 @@ window.__ModuleLoader__.load({
         const id = createId();
         setState((current) => ({
           ...current,
-          projects: [...current.projects, { id, name, colorIndex: current.projects.length % PROJECT_COLORS.length, createdAt: Date.now() }],
+          projects: [...current.projects, { id, name, colorIndex: current.projects.length % PALETTE.length, createdAt: Date.now() }],
         }));
-        setProjectId(id);
+        setSelection({ type: 'project', value: id });
         setAddingProject(false);
         setNewProjectName('');
       };
@@ -749,7 +803,7 @@ window.__ModuleLoader__.load({
           projects: current.projects.filter((project) => project.id !== id),
           tasks: current.tasks.map((task) => task.projectId === id ? { ...task, projectId: 'inbox' } : task),
         }));
-        if (projectId === id) setProjectId('all');
+        if (selection.type === 'project' && selection.value === id) setSelection({ type: 'project', value: 'all' });
       };
 
       const startEdit = (task) => {
@@ -782,21 +836,25 @@ window.__ModuleLoader__.load({
       };
       const closePopover = React.useCallback(() => setPopover(null), []);
 
-      const counts = {
-        all: projectTasks.filter((task) => !task.done).length,
-        today: projectTasks.filter((task) => !task.done && task.due !== null && task.due <= today).length,
-        upcoming: projectTasks.filter((task) => !task.done && task.due !== null && task.due > today).length,
-        important: projectTasks.filter((task) => !task.done && task.priority <= 2).length,
-        completed: projectTasks.filter((task) => task.done).length,
+      const filterCounts = {
+        today: tasks.filter((task) => !task.done && task.due !== null && task.due <= today).length,
+        upcoming: tasks.filter((task) => !task.done && task.due !== null && task.due > today).length,
+        important: tasks.filter((task) => !task.done && task.priority <= 2).length,
+        completed: tasks.filter((task) => task.done).length,
       };
-      const visible = projectTasks.filter((task) => {
+      const visible = tasks.filter((task) => {
         if (labelFilter !== null && !task.labels.includes(labelFilter)) return false;
-        if (view === 'completed') return task.done;
-        if (task.done) return false;
-        if (view === 'today') return task.due !== null && task.due <= today;
-        if (view === 'upcoming') return task.due !== null && task.due > today;
-        if (view === 'important') return task.priority <= 2;
-        return true;
+        if (selection.type === 'filter') {
+          if (selection.value === 'today') return !task.done && task.due !== null && task.due <= today;
+          if (selection.value === 'upcoming') return !task.done && task.due !== null && task.due > today;
+          if (selection.value === 'important') return !task.done && task.priority <= 2;
+          if (selection.value === 'completed') return task.done;
+          return true;
+        }
+        if (selection.type === 'project') {
+          return selection.value === 'all' || task.projectId === selection.value;
+        }
+        return task.labels.includes(selection.value);
       }).sort((left, right) => {
         if (left.done !== right.done) return left.done ? 1 : -1;
         if (left.priority !== right.priority) return left.priority - right.priority;
@@ -810,7 +868,12 @@ window.__ModuleLoader__.load({
 
       const doneCount = tasks.filter((task) => task.done).length;
       const progress = tasks.length === 0 ? 0 : doneCount / tasks.length;
-      const emptyKeys = EMPTY_KEYS[view];
+      const emptyKeys = EMPTY_KEYS[selection.type === 'filter' ? selection.value : selection.type];
+      const selectionTitle = selection.type === 'filter'
+        ? t(FILTERS.find((filter) => filter.key === selection.value).labelKey)
+        : selection.type === 'project'
+          ? (selection.value === 'all' ? t('allProjects') : selection.value === 'inbox' ? t('inbox') : (projects.find((project) => project.id === selection.value)?.name ?? t('inbox')))
+          : `${t('labelFilter')}: ${selection.value}`;
 
       const duePopover = (taskId) => {
         const task = tasks.find((item) => item.id === taskId);
@@ -868,132 +931,148 @@ window.__ModuleLoader__.load({
         ];
       };
 
-      const railButton = (id, icon, label, count) => h('button', {
-        type: 'button', className: projectId === id ? 'todo-railItem todo-railItemActive' : 'todo-railItem',
-        onClick: () => setProjectId(id),
+      const railRow = (id, icon, label, count, active, onSelect, menu) => h('div', {
+        className: active ? 'todo-railItem todo-railItemActive' : 'todo-railItem',
+        onClick: onSelect,
       }, [
         h('span', { className: 'todo-railIcon' }, icon),
         h('span', { className: 'todo-railName' }, label),
         h('span', { className: 'todo-railCount' }, String(count)),
+        menu === undefined ? null : h('button', {
+          type: 'button', className: 'todo-railMenu',
+          onClick: (event) => { event.stopPropagation(); togglePopover('project', id)(event); },
+          'aria-label': t('projectMenu'), title: t('projectMenu'),
+        }, '⋯'),
       ]);
 
       return h('div', { className: 'todo-root' }, [
         h('style', {}, CSS),
-        h('header', { className: 'todo-header' }, [
-          h('div', { className: 'todo-titleRow' }, [
-            h('div', {}, [
-              h('h1', { className: 'todo-title' }, t('title')),
-              h('p', { className: 'todo-subtitle' }, t('description')),
+        h('div', { className: 'todo-rail' }, [
+          h('div', { className: 'todo-brand' }, [
+            h('span', { className: 'todo-brandMark' }, h(CheckIcon, { size: 11 })),
+            h('span', {}, t('brand')),
+          ]),
+          h('div', { className: 'todo-railSection' }, t('filters')),
+          ...FILTERS.map((filter) => railRow(
+            filter.key,
+            h(FilterIcon, { name: filter.icon }),
+            t(filter.labelKey),
+            filterCounts[filter.key],
+            selection.type === 'filter' && selection.value === filter.key,
+            () => { setSelection({ type: 'filter', value: filter.key }); setLabelFilter(null); },
+          )),
+          h('div', { className: 'todo-railSection' }, t('projects')),
+          railRow('all', h(InboxIcon), t('allProjects'), tasks.filter((task) => !task.done).length,
+            selection.type === 'project' && selection.value === 'all',
+            () => { setSelection({ type: 'project', value: 'all' }); setLabelFilter(null); }),
+          railRow('inbox', h(InboxIcon), t('inbox'), projectCount('inbox'),
+            selection.type === 'project' && selection.value === 'inbox',
+            () => { setSelection({ type: 'project', value: 'inbox' }); setLabelFilter(null); }),
+          ...projects.filter((project) => project.id !== 'inbox').map((project) => h('div', {
+            key: project.id, className: selection.type === 'project' && selection.value === project.id ? 'todo-railItem todo-railItemActive' : 'todo-railItem',
+            onClick: () => { setSelection({ type: 'project', value: project.id }); setLabelFilter(null); },
+          }, [
+            h('span', { className: 'todo-railDot', style: { background: PALETTE[project.colorIndex % PALETTE.length] } }),
+            renamingId === project.id
+              ? h('input', {
+                  className: 'todo-railInput', value: renameText, autoFocus: true,
+                  onClick: (event) => event.stopPropagation(),
+                  onChange: (event) => setRenameText(event.target.value),
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter') renameProject(project.id);
+                    else if (event.key === 'Escape') setRenamingId(null);
+                  },
+                  onBlur: () => renameProject(project.id),
+                  'aria-label': t('renameProject'),
+                })
+              : h('span', { className: 'todo-railName' }, project.name),
+            h('span', { className: 'todo-railCount' }, String(projectCount(project.id))),
+            h('button', {
+              type: 'button', className: 'todo-railMenu',
+              onClick: (event) => { event.stopPropagation(); togglePopover('project', project.id)(event); },
+              'aria-label': t('projectMenu'), title: t('projectMenu'),
+            }, '⋯'),
+          ])),
+          addingProject
+            ? h('input', {
+                className: 'todo-railInput', value: newProjectName, autoFocus: true,
+                placeholder: t('newProjectPlaceholder'),
+                onChange: (event) => setNewProjectName(event.target.value),
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter') addProject();
+                  else if (event.key === 'Escape') { setAddingProject(false); setNewProjectName(''); }
+                },
+                onBlur: () => { if (newProjectName.trim() === '') setAddingProject(false); },
+                'aria-label': t('newProjectPlaceholder'),
+              })
+            : h('button', { type: 'button', className: 'todo-railAdd', onClick: () => { setAddingProject(true); setNewProjectName(''); } },
+                [h(PlusIcon), h('span', {}, t('newProject'))]),
+          labels.length === 0 ? null : h('div', { className: 'todo-railSection' }, t('labels')),
+          ...labels.map((label) => railRow(
+            label,
+            h(TagIcon, { color: labelColor(label) }),
+            label,
+            labelCount(label),
+            selection.type === 'label' && selection.value === label,
+            () => { setSelection({ type: 'label', value: label }); setLabelFilter(label); },
+          )),
+        ]),
+        h('div', { className: 'todo-main' }, [
+          h('div', { className: 'todo-mainHeader' }, [
+            h('div', { style: { minWidth: 0 } }, [
+              h('h1', { className: 'todo-mainTitle' }, selectionTitle),
+              h('span', { className: 'todo-mainCount' }, selection.type === 'project'
+                ? `${visible.filter((task) => task.done).length}/${visible.length}`
+                : String(visible.length)),
             ]),
             h('div', { className: 'todo-progress' }, [
               h('span', { className: 'todo-progressText' }, t('progressText', { done: doneCount, total: tasks.length })),
               h(ProgressRing, { value: progress }),
             ]),
           ]),
-        ]),
-        h('div', { className: 'todo-body' }, [
-          h('div', { className: 'todo-rail' }, [
-            h('div', { className: 'todo-railSection' }, t('projects')),
-            railButton('all', h(InboxIcon), t('allProjects'), tasks.filter((task) => !task.done).length),
-            railButton('inbox', h(InboxIcon), t('inbox'), projectCount('inbox')),
-            ...projects.filter((project) => project.id !== 'inbox').map((project) => h('div', {
-              key: project.id, className: projectId === project.id ? 'todo-railItem todo-railItemActive' : 'todo-railItem',
-              onClick: () => setProjectId(project.id),
-            }, [
-              h('span', { className: 'todo-railDot', style: { background: PROJECT_COLORS[project.colorIndex % PROJECT_COLORS.length] } }),
-              renamingId === project.id
-                ? h('input', {
-                    className: 'todo-railInput', value: renameText, autoFocus: true,
-                    onClick: (event) => event.stopPropagation(),
-                    onChange: (event) => setRenameText(event.target.value),
-                    onKeyDown: (event) => {
-                      if (event.key === 'Enter') renameProject(project.id);
-                      else if (event.key === 'Escape') setRenamingId(null);
-                    },
-                    onBlur: () => renameProject(project.id),
-                    'aria-label': t('renameProject'),
-                  })
-                : h('span', { className: 'todo-railName' }, project.name),
-              h('span', { className: 'todo-railCount' }, String(projectCount(project.id))),
+          h('div', { className: 'todo-add' }, [
+            h('div', { className: 'todo-addRow' }, [
+              h('span', { className: 'todo-addIcon' }, h(PlusIcon)),
+              h('input', {
+                className: 'todo-addInput', value: draft, placeholder: t('addPlaceholder'),
+                onChange: (event) => setDraft(event.target.value),
+                onKeyDown: (event) => { if (event.key === 'Enter') addTask(); },
+                'aria-label': t('addPlaceholder'),
+              }),
               h('button', {
-                type: 'button', className: 'todo-railMenu',
-                onClick: (event) => { event.stopPropagation(); togglePopover('project', project.id)(event); },
-                'aria-label': t('projectMenu'), title: t('projectMenu'),
-              }, '⋯'),
-            ])),
-            addingProject
-              ? h('input', {
-                  className: 'todo-railInput', value: newProjectName, autoFocus: true,
-                  placeholder: t('newProjectPlaceholder'),
-                  onChange: (event) => setNewProjectName(event.target.value),
-                  onKeyDown: (event) => {
-                    if (event.key === 'Enter') addProject();
-                    else if (event.key === 'Escape') { setAddingProject(false); setNewProjectName(''); }
-                  },
-                  onBlur: () => { if (newProjectName.trim() === '') setAddingProject(false); },
-                  'aria-label': t('newProjectPlaceholder'),
-                })
-              : h('button', { type: 'button', className: 'todo-railAdd', onClick: () => { setAddingProject(true); setNewProjectName(''); } },
-                  [h(PlusIcon), h('span', {}, t('newProject'))]),
-          ]),
-          h('div', { className: 'todo-main' }, [
-            h('div', { className: 'todo-views' }, VIEWS.map((key) => h('button', {
-              type: 'button', key,
-              className: view === key ? 'todo-view todo-viewActive' : 'todo-view',
-              onClick: () => setView(key), 'aria-pressed': view === key,
-            }, [
-              h('span', {}, t(key)),
-              h('span', { className: 'todo-viewCount' }, String(counts[key])),
-            ]))),
-            labelFilter === null ? null : h('div', { className: 'todo-labelFilter' }, [
-              h('span', { className: 'todo-labelFilterText' }, `${t('labelFilter')}: ${labelFilter}`),
-              h('button', {
-                type: 'button', className: 'todo-labelFilterClear',
-                onClick: () => setLabelFilter(null), 'aria-label': t('clearLabelFilter'),
-              }, '×'),
+                type: 'button', className: 'todo-addButton', onClick: addTask, disabled: draft.trim() === '',
+              }, t('add')),
             ]),
-            h('div', { className: 'todo-add' }, [
-              h('div', { className: 'todo-addRow' }, [
-                h('input', {
-                  className: 'todo-addInput', value: draft, placeholder: t('addPlaceholder'),
-                  onChange: (event) => setDraft(event.target.value),
-                  onKeyDown: (event) => { if (event.key === 'Enter') addTask(); },
-                  'aria-label': t('addPlaceholder'),
-                }),
-                h('button', {
-                  type: 'button', className: 'todo-addButton', onClick: addTask, disabled: draft.trim() === '',
-                }, t('add')),
-              ]),
-              h('p', { className: 'todo-hint' }, t('quickAddHint')),
-            ]),
-            view === 'completed' && counts.completed > 0
-              ? h('div', { className: 'todo-clear' }, [
-                  h('span', {}, t('completedCount', { count: counts.completed })),
-                  h('button', { type: 'button', className: 'todo-clearButton', onClick: clearCompleted }, t('clearCompleted')),
-                ])
-              : null,
-            h('div', { className: 'todo-list' }, visible.length === 0
-              ? h('div', { className: 'todo-empty' }, [
-                  h('div', { className: 'todo-emptyTitle' }, t(emptyKeys[0])),
-                  h('div', { className: 'todo-emptyText' }, t(emptyKeys[1])),
-                ])
-              : visible.map((task) => h(TaskRow, {
-                  key: task.id, t, task, today, labelFilter,
-                  editing: editingId === task.id, editText,
-                  onStartEdit: () => startEdit(task),
-                  onChangeEdit: setEditText,
-                  onSaveEdit: () => saveEdit(task.id),
-                  onCancelEdit: cancelEdit,
-                  onToggle: () => toggleTask(task.id),
-                  onDelete: () => deleteTask(task.id),
-                  onOpenPriority: togglePopover('priority', task.id),
-                  onOpenDue: togglePopover('due', task.id),
-                  onToggleLabel: (label) => setLabelFilter((current) => current === label ? null : label),
-                  onToggleSubtask: (subId) => toggleSubtask(task.id, subId),
-                  onAddSubtask: (text) => addSubtask(task.id, text),
-                  onDeleteSubtask: (subId) => deleteSubtask(task.id, subId),
-                }))),
+            h('p', { className: 'todo-hint' }, t('quickAddHint')),
           ]),
+          selection.type === 'filter' && selection.value === 'completed' && filterCounts.completed > 0
+            ? h('div', { className: 'todo-clear' }, [
+                h('span', {}, t('completedCount', { count: filterCounts.completed })),
+                h('button', { type: 'button', className: 'todo-clearButton', onClick: clearCompleted }, t('clearCompleted')),
+              ])
+            : null,
+          h('div', { className: 'todo-list' }, visible.length === 0
+            ? h('div', { className: 'todo-empty' }, [
+                h('div', { className: 'todo-emptyMark' }, h(CheckCircleIcon)),
+                h('div', { className: 'todo-emptyTitle' }, t(emptyKeys[0])),
+                h('div', { className: 'todo-emptyText' }, t(emptyKeys[1])),
+              ])
+            : visible.map((task) => h(TaskRow, {
+                key: task.id, t, task, today, labelFilter,
+                editing: editingId === task.id, editText,
+                onStartEdit: () => startEdit(task),
+                onChangeEdit: setEditText,
+                onSaveEdit: () => saveEdit(task.id),
+                onCancelEdit: cancelEdit,
+                onToggle: () => toggleTask(task.id),
+                onDelete: () => deleteTask(task.id),
+                onOpenPriority: togglePopover('priority', task.id),
+                onOpenDue: togglePopover('due', task.id),
+                onToggleLabel: (label) => setLabelFilter((current) => current === label ? null : label),
+                onToggleSubtask: (subId) => toggleSubtask(task.id, subId),
+                onAddSubtask: (text) => addSubtask(task.id, text),
+                onDeleteSubtask: (subId) => deleteSubtask(task.id, subId),
+              }))),
         ]),
         popover === null
           ? null
