@@ -11,5 +11,5 @@ github:zhangzh_anch/dsh-plugins#main&path:/quick-notes
 
 ## Bundles
 
-- `quick-notes` — a left-sidebar to-do list with priorities, due dates, subtasks and
-  smart views (`@local/quick-notes`).
+- `quick-notes` — a left-sidebar Todoist-style task list with projects, labels,
+  P1–P4 priorities, recurring tasks, subtasks and smart views (`@local/quick-notes`).

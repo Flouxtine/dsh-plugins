@@ -6,23 +6,37 @@ window.__ModuleLoader__.load({
 
     const NS = 'quick-notes';
     const PANEL_ID = 'quick-notes';
-    const STORAGE_KEY = 'dsh.local.quick-notes.tasks';
+    const STORAGE_KEY = 'dsh.local.quick-notes.state.v1';
+    const LEGACY_TASKS_KEY = 'dsh.local.quick-notes.tasks';
     const LEGACY_NOTE_KEY = 'dsh.local.quick-notes.text';
 
     const VIEWS = ['all', 'today', 'upcoming', 'important', 'completed'];
-    const PRIORITY_KEYS = ['priority0', 'priority1', 'priority2', 'priority3', 'priority4'];
     const PRIORITY_COLORS = [
-      'var(--dsw-alias-label-secondary)',
-      'var(--dsw-alias-state-idle-primary)',
+      'var(--dsw-alias-state-error-primary)',
+      'var(--dsw-alias-state-warn-primary)',
       'var(--dsw-alias-brand-primary)',
+      'var(--dsw-alias-state-idle-primary)',
+    ];
+    const PRIORITY_KEYS = ['priority1', 'priority2', 'priority3', 'priority4'];
+    const PROJECT_COLORS = [
+      'var(--dsw-alias-brand-primary)',
+      'var(--dsw-alias-state-success-primary)',
       'var(--dsw-alias-state-warn-primary)',
       'var(--dsw-alias-state-error-primary)',
+      'var(--dsw-alias-state-idle-primary)',
     ];
     const DUE_QUICK = ['today', 'tomorrow', 'nextweek'];
     const WEEKDAYS = {
       '!monday': 1, '!tuesday': 2, '!wednesday': 3, '!thursday': 4, '!friday': 5, '!saturday': 6, '!sunday': 0,
       '!周一': 1, '!周二': 2, '!周三': 3, '!周四': 4, '!周五': 5, '!周六': 6, '!周日': 0, '!星期天': 0,
     };
+    const REPEATS = {
+      '!everyday': 'daily', '!每天': 'daily',
+      '!everyweek': 'weekly', '!每周': 'weekly',
+      '!everymonth': 'monthly', '!每月': 'monthly',
+      '!weekdays': 'weekdays', '!工作日': 'weekdays',
+    };
+    const OLD_PRIORITY_MAP = { 0: 4, 1: 4, 2: 3, 3: 2, 4: 1 };
     const EMPTY_KEYS = {
       all: ['emptyAllTitle', 'emptyAllText'],
       today: ['emptyTodayTitle', 'emptyTodayText'],
@@ -34,19 +48,38 @@ window.__ModuleLoader__.load({
     const CSS = `
 .todo-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-size: 14px; }
 .todo-root *, .todo-root *::before, .todo-root *::after { box-sizing: border-box; }
-.todo-header { padding: 20px 24px 10px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.todo-header { padding: 18px 24px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
 .todo-titleRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .todo-title { margin: 0; font-size: 20px; font-weight: 600; line-height: 28px; letter-spacing: -0.01em; }
 .todo-subtitle { margin: 3px 0 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .todo-progress { display: flex; align-items: center; gap: 8px; flex: none; }
 .todo-progressText { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
-.todo-views { display: flex; gap: 4px; padding: 10px 24px 6px; overflow-x: auto; scrollbar-width: none; }
+.todo-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.todo-rail { width: 188px; flex: none; border-right: 1px solid var(--dsw-alias-border-l1); overflow-y: auto; padding: 8px 8px 12px; }
+.todo-railSection { padding: 6px 8px 4px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); letter-spacing: 0.04em; text-transform: uppercase; }
+.todo-railItem { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; line-height: 20px; padding: 5px 8px; border-radius: 7px; cursor: pointer; text-align: left; }
+.todo-railItem:hover { background: var(--dsw-alias-bg-layer-1); }
+.todo-railItemActive { background: var(--dsw-alias-bg-layer-2); font-weight: 500; }
+.todo-railDot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.todo-railIcon { width: 15px; height: 15px; flex: none; display: inline-flex; color: var(--dsw-alias-label-secondary); }
+.todo-railName { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-railCount { font-size: 11px; color: var(--dsw-alias-label-secondary); flex: none; }
+.todo-railMenu { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 14px; line-height: 16px; padding: 0 2px; border-radius: 4px; cursor: pointer; opacity: 0; flex: none; }
+.todo-railItem:hover .todo-railMenu { opacity: 1; }
+.todo-railAdd { display: flex; align-items: center; gap: 8px; width: 100%; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; line-height: 20px; padding: 5px 8px; border-radius: 7px; cursor: pointer; text-align: left; }
+.todo-railAdd:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
+.todo-railInput { flex: 1 1 auto; min-width: 0; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 13px; line-height: 20px; padding: 4px 6px; outline: none; }
+.todo-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.todo-views { display: flex; gap: 4px; padding: 10px 16px 6px; overflow-x: auto; scrollbar-width: none; }
 .todo-views::-webkit-scrollbar { display: none; }
 .todo-view { display: inline-flex; align-items: center; gap: 5px; border: none; border-radius: 999px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
 .todo-view:hover { background: var(--dsw-alias-bg-layer-2); }
 .todo-viewActive { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); font-weight: 500; }
 .todo-viewCount { font-size: 11px; color: var(--dsw-alias-label-secondary); }
-.todo-add { padding: 6px 24px 8px; }
+.todo-labelFilter { display: flex; align-items: center; gap: 8px; margin: 0 16px 4px; padding: 3px 8px; border-radius: 6px; background: var(--dsw-alias-bg-layer-1); font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.todo-labelFilterText { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-labelFilterClear { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 14px; line-height: 16px; padding: 0 2px; cursor: pointer; }
+.todo-add { padding: 6px 16px 8px; }
 .todo-addRow { display: flex; align-items: center; gap: 8px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); padding: 3px 3px 3px 12px; }
 .todo-addRow:focus-within { border-color: var(--dsw-alias-brand-primary); }
 .todo-addInput { flex: 1 1 auto; min-width: 0; border: none; background: transparent; color: inherit; font: inherit; font-size: 14px; line-height: 32px; outline: none; }
@@ -55,7 +88,7 @@ window.__ModuleLoader__.load({
 .todo-addButton:disabled { opacity: 0.45; cursor: default; }
 .todo-hint { margin: 6px 0 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 .todo-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.todo-task { display: flex; align-items: flex-start; gap: 10px; padding: 7px 24px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.todo-task { display: flex; align-items: flex-start; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
 .todo-task:hover { background: var(--dsw-alias-bg-layer-1); }
 .todo-check { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--dsw-alias-border-l2); background: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; margin-top: 1px; transition: background 0.15s ease, border-color 0.15s ease; }
 .todo-check:hover { border-color: var(--dsw-alias-brand-primary); }
@@ -68,6 +101,11 @@ window.__ModuleLoader__.load({
 .todo-edit { width: 100%; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 14px; line-height: 22px; padding: 2px 6px; outline: none; }
 .todo-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
 .todo-subProgress { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+.todo-labels { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.todo-label { border: none; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font: inherit; font-size: 11px; line-height: 16px; padding: 1px 7px; cursor: pointer; }
+.todo-label:hover { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); }
+.todo-labelActive { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-bg-base); }
+.todo-repeat { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 .todo-subs { margin-top: 2px; }
 .todo-sub { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
 .todo-subCheck { flex: none; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--dsw-alias-border-l2); background: transparent; display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
@@ -96,7 +134,7 @@ window.__ModuleLoader__.load({
 .todo-popoverLabel { padding: 4px 8px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 .todo-popoverDivider { height: 1px; background: var(--dsw-alias-border-l1); margin: 4px 0; }
 .todo-dateInput { width: 100%; border: 1px solid var(--dsw-alias-border-l2); border-radius: 6px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 13px; line-height: 20px; padding: 5px 8px; margin: 4px 0; outline: none; }
-.todo-clear { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 24px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.todo-clear { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 12px; color: var(--dsw-alias-label-secondary); }
 .todo-clearButton { border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; cursor: pointer; padding: 2px 6px; border-radius: 5px; }
 .todo-clearButton:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
 `;
@@ -105,28 +143,38 @@ window.__ModuleLoader__.load({
       en: {
         panel: 'To-Do',
         title: 'To-Do',
-        description: 'Priorities, due dates, subtasks and smart views — saved in this browser.',
+        description: 'Projects, labels, priorities, recurring tasks and due dates — saved in this browser.',
+        allProjects: 'All projects',
+        inbox: 'Inbox',
+        projects: 'Projects',
+        newProject: 'New project',
+        newProjectPlaceholder: 'Project name',
+        renameProject: 'Rename',
+        deleteProject: 'Delete project (tasks move to Inbox)',
+        projectMenu: 'Project menu',
         addPlaceholder: 'Add a task…',
         add: 'Add',
-        quickAddHint: 'Quick add: !p1–!p4 priority, !today / !tomorrow / !nextweek / !monday due date',
+        quickAddHint: 'Quick add: !p1–!p4 priority · !today / !tomorrow / !nextweek / !monday due · @label · !everyday / !everyweek / !everymonth repeat',
         all: 'All',
         today: 'Today',
         upcoming: 'Upcoming',
         important: 'Important',
         completed: 'Completed',
         priorityLabel: 'Priority',
-        priority0: 'None',
-        priority1: 'Low',
-        priority2: 'Medium',
-        priority3: 'High',
-        priority4: 'Urgent',
-        priorityTip: 'Priority — click to change',
+        priority1: 'Priority 1',
+        priority2: 'Priority 2',
+        priority3: 'Priority 3',
+        priority4: 'Priority 4',
         dueLabel: 'Due date',
         dueToday: 'Today',
         dueTomorrow: 'Tomorrow',
         dueNextWeek: 'Next week',
         dueClear: 'Clear date',
         dueSet: 'Set due date',
+        repeat_daily: 'Daily',
+        repeat_weekly: 'Weekly',
+        repeat_monthly: 'Monthly',
+        repeat_weekdays: 'Every weekday',
         subtaskProgress: '{done}/{total} subtasks',
         addSubtask: 'Add a subtask…',
         editHint: 'Double-click to edit',
@@ -137,6 +185,8 @@ window.__ModuleLoader__.load({
         progressText: '{done}/{total} done',
         clearCompleted: 'Clear completed',
         completedCount: '{count} completed',
+        labelFilter: 'Label',
+        clearLabelFilter: 'Clear label filter',
         emptyAllTitle: 'No tasks yet',
         emptyAllText: 'Add your first task above.',
         emptyTodayTitle: 'Nothing due today',
@@ -144,35 +194,45 @@ window.__ModuleLoader__.load({
         emptyUpcomingTitle: 'Nothing scheduled',
         emptyUpcomingText: 'Add a due date to see what is coming.',
         emptyImportantTitle: 'No important tasks',
-        emptyImportantText: 'Mark a task High or Urgent to keep it here.',
+        emptyImportantText: 'Mark a task P1 or P2 to keep it here.',
         emptyCompletedTitle: 'Nothing completed yet',
         emptyCompletedText: 'Finished tasks will gather here.',
       },
       zh: {
         panel: '待办事项',
         title: '待办事项',
-        description: '优先级、截止日期、子任务与智能视图 —— 保存在当前浏览器。',
+        description: '项目、标签、优先级、重复任务与截止日期 —— 保存在当前浏览器。',
+        allProjects: '所有项目',
+        inbox: '收件箱',
+        projects: '项目',
+        newProject: '新建项目',
+        newProjectPlaceholder: '项目名称',
+        renameProject: '重命名',
+        deleteProject: '删除项目（任务移入收件箱）',
+        projectMenu: '项目菜单',
         addPlaceholder: '添加一个任务…',
         add: '添加',
-        quickAddHint: '快速添加：!p1–!p4 优先级，!今天 / !明天 / !下周 / !周一 截止日期',
+        quickAddHint: '快速添加：!p1–!p4 优先级 · !今天 / !明天 / !下周 / !周一 截止 · @标签 · !每天 / !每周 / !每月 重复',
         all: '全部',
         today: '今天',
         upcoming: '即将到来',
         important: '重要',
         completed: '已完成',
         priorityLabel: '优先级',
-        priority0: '无',
-        priority1: '低',
-        priority2: '中',
-        priority3: '高',
-        priority4: '紧急',
-        priorityTip: '优先级 —— 点击切换',
+        priority1: '优先级 1',
+        priority2: '优先级 2',
+        priority3: '优先级 3',
+        priority4: '优先级 4',
         dueLabel: '截止日期',
         dueToday: '今天',
         dueTomorrow: '明天',
         dueNextWeek: '下周',
         dueClear: '清除日期',
         dueSet: '设置截止日期',
+        repeat_daily: '每天',
+        repeat_weekly: '每周',
+        repeat_monthly: '每月',
+        repeat_weekdays: '每个工作日',
         subtaskProgress: '{done}/{total} 子任务',
         addSubtask: '添加子任务…',
         editHint: '双击编辑',
@@ -183,6 +243,8 @@ window.__ModuleLoader__.load({
         progressText: '已完成 {done}/{total}',
         clearCompleted: '清除已完成',
         completedCount: '已完成 {count} 项',
+        labelFilter: '标签',
+        clearLabelFilter: '清除标签筛选',
         emptyAllTitle: '还没有任务',
         emptyAllText: '在上方添加你的第一个任务。',
         emptyTodayTitle: '今天没有到期任务',
@@ -190,7 +252,7 @@ window.__ModuleLoader__.load({
         emptyUpcomingTitle: '还没有安排',
         emptyUpcomingText: '给任务加上截止日期，就能看到接下来的安排。',
         emptyImportantTitle: '没有重要任务',
-        emptyImportantText: '把任务标为「高」或「紧急」就会出现在这里。',
+        emptyImportantText: '把任务标为 P1 或 P2 就会出现在这里。',
         emptyCompletedTitle: '还没有已完成的事',
         emptyCompletedText: '完成的任务会汇总在这里。',
       },
@@ -200,11 +262,17 @@ window.__ModuleLoader__.load({
       return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
+    function isState(value) {
+      return typeof value === 'object' && value !== null
+        && Array.isArray(value.projects) && Array.isArray(value.tasks);
+    }
+
     function isTask(value) {
       return typeof value === 'object' && value !== null
         && typeof value.id === 'string' && typeof value.text === 'string' && typeof value.done === 'boolean'
         && typeof value.priority === 'number' && (value.due === null || typeof value.due === 'string')
-        && Array.isArray(value.subtasks);
+        && typeof value.projectId === 'string' && Array.isArray(value.labels) && Array.isArray(value.subtasks)
+        && (value.repeat === null || typeof value.repeat === 'string');
     }
 
     /** Local calendar date as `YYYY-MM-DD`, the form a date input and the store use. */
@@ -232,6 +300,11 @@ window.__ModuleLoader__.load({
       return toISO(date);
     }
 
+    function isWeekend(iso) {
+      const day = new Date(`${iso}T00:00:00`).getDay();
+      return day === 0 || day === 6;
+    }
+
     function quickDate(key) {
       if (key === 'today') return todayISO();
       if (key === 'tomorrow') return addDays(todayISO(), 1);
@@ -239,16 +312,40 @@ window.__ModuleLoader__.load({
       return null;
     }
 
+    /** The next due date of a recurring rule, from the current one (or today when there is none). */
+    function nextRepeatDue(repeat, due) {
+      const base = due === null ? todayISO() : due;
+      if (repeat === 'daily') return addDays(base, 1);
+      if (repeat === 'weekly') return addDays(base, 7);
+      if (repeat === 'monthly') {
+        const date = new Date(`${base}T00:00:00`);
+        const day = date.getDate();
+        date.setDate(1);
+        date.setMonth(date.getMonth() + 1);
+        const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+        date.setDate(Math.min(day, daysInMonth));
+        return toISO(date);
+      }
+      if (repeat === 'weekdays') {
+        let next = addDays(base, 1);
+        while (isWeekend(next)) next = addDays(next, 1);
+        return next;
+      }
+      return null;
+    }
+
     /**
-     * Split a quick-add draft into text, priority and due date. `!p1`–`!p4` set the
-     * priority; `!today`/`!tomorrow`/`!nextweek` and weekday names set the date.
+     * Split a quick-add draft into text and its Todoist-style attributes: `!p1`–`!p4`
+     * priority, `!today`/`!tomorrow`/`!nextweek` and weekday due dates, `@label`, and
+     * `!everyday`/`!everyweek`/`!everymonth`/`!weekdays` repetition.
      * @param raw - the text typed into the add field.
      * @returns the parsed task fields.
      */
     function parseDraft(raw) {
-      const result = { text: raw, priority: 0, due: null };
+      const result = { text: raw, priority: 4, due: null, labels: [], repeat: null };
       const kept = [];
       for (const word of raw.split(/\s+/)) {
+        if (word === '') continue;
         const lower = word.toLowerCase();
         if (/^!p[1-4]$/.test(lower)) {
           result.priority = Number(lower.slice(2));
@@ -269,6 +366,16 @@ window.__ModuleLoader__.load({
         const weekday = WEEKDAYS[lower];
         if (weekday !== undefined) {
           result.due = nextWeekday(weekday);
+          continue;
+        }
+        const repeat = REPEATS[lower];
+        if (repeat !== undefined) {
+          result.repeat = repeat;
+          continue;
+        }
+        if (word.startsWith('@') && word.length > 1) {
+          const label = word.slice(1).trim();
+          if (label !== '' && !result.labels.includes(label)) result.labels.push(label);
           continue;
         }
         kept.push(word);
@@ -296,37 +403,75 @@ window.__ModuleLoader__.load({
         id: `${createId()}${index}`,
         text,
         done: false,
-        priority: 0,
+        priority: 4,
         due: null,
+        projectId: 'inbox',
+        labels: [],
+        repeat: null,
         subtasks: [],
         createdAt: now + index,
       }));
     }
 
-    function loadTasks() {
+    /** The pre-project task array, mapped onto the Inbox project. */
+    function loadLegacyTasks() {
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+        const raw = window.localStorage.getItem(LEGACY_TASKS_KEY);
         if (raw !== null) {
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) return parsed.filter(isTask);
+          if (Array.isArray(parsed)) {
+            return parsed.filter(isTask).map((task) => ({
+              id: task.id,
+              text: task.text,
+              done: task.done,
+              priority: OLD_PRIORITY_MAP[task.priority] ?? 4,
+              due: task.due,
+              subtasks: task.subtasks,
+              createdAt: task.createdAt,
+              projectId: 'inbox',
+              labels: [],
+              repeat: null,
+            }));
+          }
         }
       } catch {
-        // Unreadable or malformed storage falls through to the legacy import.
+        // Unreadable storage falls through to the note import.
       }
       return migrateLegacyNote();
     }
 
-    function saveTasks(tasks) {
+    function loadState() {
       try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (raw !== null) {
+          const parsed = JSON.parse(raw);
+          if (isState(parsed)) {
+            return {
+              projects: parsed.projects.filter((project) => typeof project === 'object' && project !== null && typeof project.id === 'string'),
+              tasks: parsed.tasks.filter(isTask),
+            };
+          }
+        }
+      } catch {
+        // Unreadable or malformed storage falls through to the legacy import.
+      }
+      return {
+        projects: [{ id: 'inbox', name: 'Inbox', colorIndex: 0, createdAt: 0 }],
+        tasks: loadLegacyTasks(),
+      };
+    }
+
+    function saveState(state) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch {
         // Storage can be unavailable (private mode, quota); the list still works in memory.
       }
     }
 
-    function CheckIcon({ size = 12, color = 'currentColor' }) {
+    function CheckIcon({ size = 12 }) {
       return h('svg', { width: size, height: size, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
-        h('path', { d: 'M3 8.5l3.2 3L13 4.5', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+        h('path', { d: 'M3 8.5l3.2 3L13 4.5', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
     }
 
     function FlagIcon({ color }) {
@@ -350,6 +495,16 @@ window.__ModuleLoader__.load({
     function TrashIcon() {
       return h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
         h('path', { d: 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+    }
+
+    function RepeatIcon() {
+      return h('svg', { width: 11, height: 11, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('path', { d: 'M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+    }
+
+    function InboxIcon() {
+      return h('svg', { width: 15, height: 15, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+        h('path', { d: 'M2.5 8.5h3l1 2h3l1-2h3M2.5 8.5L4 3.5h8l1.5 5v3.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z', stroke: 'currentColor', strokeWidth: 1.2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
     }
 
     function ProgressRing({ value }) {
@@ -388,11 +543,7 @@ window.__ModuleLoader__.load({
         };
       }, [anchor, width, onClose]);
       if (anchor === null || style === null) return null;
-      return h('div', {
-        ref,
-        className: 'todo-popover',
-        style,
-      }, children);
+      return h('div', { ref, className: 'todo-popover', style }, children);
     }
 
     function TaskRow(props) {
@@ -443,8 +594,15 @@ window.__ModuleLoader__.load({
                 onDoubleClick: props.onStartEdit,
                 title: t('editHint'),
               }, task.text),
-          task.subtasks.length === 0 ? null : h('div', { className: 'todo-meta' },
-            h('span', { className: 'todo-subProgress' }, t('subtaskProgress', { done: subDone, total: task.subtasks.length }))),
+          h('div', { className: 'todo-meta' }, [
+            task.subtasks.length === 0 ? null : h('span', { className: 'todo-subProgress' }, t('subtaskProgress', { done: subDone, total: task.subtasks.length })),
+            task.repeat === null ? null : h('span', { className: 'todo-repeat' }, [h(RepeatIcon), h('span', {}, t(`repeat_${task.repeat}`))]),
+          ]),
+          task.labels.length === 0 ? null : h('div', { className: 'todo-labels' }, task.labels.map((label) => h('button', {
+            type: 'button', key: label, className: props.labelFilter === label ? 'todo-label todo-labelActive' : 'todo-label',
+            onClick: () => props.onToggleLabel(label),
+            title: `${t('labelFilter')}: ${label}`,
+          }, label))),
           h('div', { className: 'todo-subs' }, task.subtasks.map((sub) => h('div', { key: sub.id, className: 'todo-sub' }, [
             h('button', {
               type: 'button',
@@ -455,18 +613,14 @@ window.__ModuleLoader__.load({
             }, sub.done ? h(CheckIcon, { size: 9 }) : null),
             h('span', { className: sub.done ? 'todo-subText todo-subTextDone' : 'todo-subText' }, sub.text),
             h('button', {
-              type: 'button',
-              className: 'todo-subDelete',
-              onClick: () => props.onDeleteSubtask(sub.id),
-              'aria-label': t('deleteTask'),
+              type: 'button', className: 'todo-subDelete',
+              onClick: () => props.onDeleteSubtask(sub.id), 'aria-label': t('deleteTask'),
             }, '×'),
           ]))),
           h('div', { className: 'todo-subAdd' }, [
             h(PlusIcon),
             h('input', {
-              className: 'todo-subInput',
-              value: subDraft,
-              placeholder: t('addSubtask'),
+              className: 'todo-subInput', value: subDraft, placeholder: t('addSubtask'),
               onChange: (event) => setSubDraft(event.target.value),
               onKeyDown: (event) => { if (event.key === 'Enter') submitSubtask(); },
               'aria-label': t('addSubtask'),
@@ -475,67 +629,128 @@ window.__ModuleLoader__.load({
         ]),
         h('div', { className: 'todo-actions' }, [
           h('button', {
-            type: 'button',
-            className: 'todo-iconButton',
-            onClick: props.onOpenPriority,
-            title: `${t('priorityLabel')}: ${t(PRIORITY_KEYS[task.priority])}`,
-            'aria-label': `${t('priorityLabel')}: ${t(PRIORITY_KEYS[task.priority])}`,
-          }, h(FlagIcon, { color: PRIORITY_COLORS[task.priority] })),
+            type: 'button', className: 'todo-iconButton', onClick: props.onOpenPriority,
+            title: `${t('priorityLabel')}: ${t(PRIORITY_KEYS[task.priority - 1])}`,
+            'aria-label': `${t('priorityLabel')}: ${t(PRIORITY_KEYS[task.priority - 1])}`,
+          }, h(FlagIcon, { color: PRIORITY_COLORS[task.priority - 1] })),
           h('button', {
-            type: 'button',
-            className: dueClass,
-            onClick: props.onOpenDue,
+            type: 'button', className: dueClass, onClick: props.onOpenDue,
             title: task.due === null ? t('dueSet') : t('dueLabel'),
             'aria-label': task.due === null ? t('dueSet') : `${t('dueLabel')}: ${dueLabel}`,
           }, [h(CalendarIcon), dueLabel === null ? null : h('span', {}, dueLabel)]),
           h('button', {
-            type: 'button',
-            className: 'todo-iconButton todo-delete',
-            onClick: props.onDelete,
-            'aria-label': t('deleteTask'),
-            title: t('deleteTask'),
+            type: 'button', className: 'todo-iconButton todo-delete', onClick: props.onDelete,
+            'aria-label': t('deleteTask'), title: t('deleteTask'),
           }, h(TrashIcon)),
         ]),
       ]);
     }
 
     function TodoPanel({ t }) {
-      const [tasks, setTasks] = React.useState(loadTasks);
+      const [state, setState] = React.useState(loadState);
+      const [projectId, setProjectId] = React.useState('all');
       const [view, setView] = React.useState('all');
       const [draft, setDraft] = React.useState('');
+      const [labelFilter, setLabelFilter] = React.useState(null);
       const [editingId, setEditingId] = React.useState(null);
       const [editText, setEditText] = React.useState('');
       const [popover, setPopover] = React.useState(null);
+      const [addingProject, setAddingProject] = React.useState(false);
+      const [newProjectName, setNewProjectName] = React.useState('');
+      const [renamingId, setRenamingId] = React.useState(null);
+      const [renameText, setRenameText] = React.useState('');
       const cancelEditRef = React.useRef(false);
 
-      React.useEffect(() => { saveTasks(tasks); }, [tasks]);
+      React.useEffect(() => { saveState(state); }, [state]);
 
       const today = todayISO();
+      const { projects, tasks } = state;
+      const projectTasks = projectId === 'all' ? tasks : tasks.filter((task) => task.projectId === projectId);
+      const projectCount = (id) => tasks.filter((task) => task.projectId === id && !task.done).length;
+      const projectName = (project) => project.id === 'inbox' ? t('inbox') : project.name;
 
       const addTask = () => {
         const parsed = parseDraft(draft);
         if (parsed.text === '') return;
-        setTasks((current) => [...current, {
-          id: createId(), text: parsed.text, done: false, priority: parsed.priority,
-          due: parsed.due, subtasks: [], createdAt: Date.now(),
-        }]);
+        const targetProject = projectId === 'all' ? 'inbox' : projectId;
+        setState((current) => ({
+          ...current,
+          tasks: [...current.tasks, {
+            id: createId(), text: parsed.text, done: false, priority: parsed.priority,
+            due: parsed.due, projectId: targetProject, labels: parsed.labels, repeat: parsed.repeat,
+            subtasks: [], createdAt: Date.now(),
+          }],
+        }));
         setDraft('');
+        setLabelFilter(null);
       };
 
-      const toggleTask = (id) => setTasks((current) => current.map((task) => task.id === id ? { ...task, done: !task.done } : task));
-      const deleteTask = (id) => setTasks((current) => current.filter((task) => task.id !== id));
-      const setPriority = (id, priority) => setTasks((current) => current.map((task) => task.id === id ? { ...task, priority } : task));
-      const setDue = (id, due) => setTasks((current) => current.map((task) => task.id === id ? { ...task, due } : task));
-      const toggleSubtask = (id, subId) => setTasks((current) => current.map((task) => task.id === id
-        ? { ...task, subtasks: task.subtasks.map((sub) => sub.id === subId ? { ...sub, done: !sub.done } : sub) }
-        : task));
-      const addSubtask = (id, text) => setTasks((current) => current.map((task) => task.id === id
-        ? { ...task, subtasks: [...task.subtasks, { id: createId(), text, done: false }] }
-        : task));
-      const deleteSubtask = (id, subId) => setTasks((current) => current.map((task) => task.id === id
-        ? { ...task, subtasks: task.subtasks.filter((sub) => sub.id !== subId) }
-        : task));
-      const clearCompleted = () => setTasks((current) => current.filter((task) => !task.done));
+      const toggleTask = (id) => setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => {
+          if (task.id !== id) return task;
+          if (task.done) return { ...task, done: false };
+          if (task.repeat !== null) {
+            return { ...task, done: false, due: nextRepeatDue(task.repeat, task.due) };
+          }
+          return { ...task, done: true };
+        }),
+      }));
+      const deleteTask = (id) => setState((current) => ({ ...current, tasks: current.tasks.filter((task) => task.id !== id) }));
+      const setPriority = (id, priority) => setState((current) => ({
+        ...current, tasks: current.tasks.map((task) => task.id === id ? { ...task, priority } : task),
+      }));
+      const setDue = (id, due) => setState((current) => ({
+        ...current, tasks: current.tasks.map((task) => task.id === id ? { ...task, due } : task),
+      }));
+      const toggleSubtask = (id, subId) => setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => task.id === id
+          ? { ...task, subtasks: task.subtasks.map((sub) => sub.id === subId ? { ...sub, done: !sub.done } : sub) }
+          : task),
+      }));
+      const addSubtask = (id, text) => setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => task.id === id
+          ? { ...task, subtasks: [...task.subtasks, { id: createId(), text, done: false }] }
+          : task),
+      }));
+      const deleteSubtask = (id, subId) => setState((current) => ({
+        ...current,
+        tasks: current.tasks.map((task) => task.id === id
+          ? { ...task, subtasks: task.subtasks.filter((sub) => sub.id !== subId) }
+          : task),
+      }));
+      const clearCompleted = () => setState((current) => ({ ...current, tasks: current.tasks.filter((task) => !task.done) }));
+
+      const addProject = () => {
+        const name = newProjectName.trim();
+        if (name === '') return;
+        const id = createId();
+        setState((current) => ({
+          ...current,
+          projects: [...current.projects, { id, name, colorIndex: current.projects.length % PROJECT_COLORS.length, createdAt: Date.now() }],
+        }));
+        setProjectId(id);
+        setAddingProject(false);
+        setNewProjectName('');
+      };
+      const renameProject = (id) => {
+        const name = renameText.trim();
+        setState((current) => ({
+          ...current,
+          projects: current.projects.map((project) => project.id === id && project.id !== 'inbox' && name !== '' ? { ...project, name } : project),
+        }));
+        setRenamingId(null);
+      };
+      const deleteProject = (id) => {
+        setState((current) => ({
+          ...current,
+          projects: current.projects.filter((project) => project.id !== id),
+          tasks: current.tasks.map((task) => task.projectId === id ? { ...task, projectId: 'inbox' } : task),
+        }));
+        if (projectId === id) setProjectId('all');
+      };
 
       const startEdit = (task) => {
         cancelEditRef.current = false;
@@ -548,7 +763,10 @@ window.__ModuleLoader__.load({
           return;
         }
         const text = editText.trim();
-        setTasks((current) => current.map((task) => task.id === id && text !== '' ? { ...task, text } : task));
+        setState((current) => ({
+          ...current,
+          tasks: current.tasks.map((task) => task.id === id && text !== '' ? { ...task, text } : task),
+        }));
         setEditingId(null);
       };
       const cancelEdit = () => {
@@ -556,31 +774,32 @@ window.__ModuleLoader__.load({
         setEditingId(null);
       };
 
-      const togglePopover = (kind, taskId) => (event) => {
+      const togglePopover = (kind, key) => (event) => {
         const anchor = event.currentTarget;
-        setPopover((current) => current !== null && current.kind === kind && current.taskId === taskId
+        setPopover((current) => current !== null && current.kind === kind && current.key === key
           ? null
-          : { kind, taskId, anchor });
+          : { kind, key, anchor });
       };
       const closePopover = React.useCallback(() => setPopover(null), []);
 
       const counts = {
-        all: tasks.filter((task) => !task.done).length,
-        today: tasks.filter((task) => !task.done && task.due !== null && task.due <= today).length,
-        upcoming: tasks.filter((task) => !task.done && task.due !== null && task.due > today).length,
-        important: tasks.filter((task) => !task.done && task.priority >= 3).length,
-        completed: tasks.filter((task) => task.done).length,
+        all: projectTasks.filter((task) => !task.done).length,
+        today: projectTasks.filter((task) => !task.done && task.due !== null && task.due <= today).length,
+        upcoming: projectTasks.filter((task) => !task.done && task.due !== null && task.due > today).length,
+        important: projectTasks.filter((task) => !task.done && task.priority <= 2).length,
+        completed: projectTasks.filter((task) => task.done).length,
       };
-      const visible = tasks.filter((task) => {
+      const visible = projectTasks.filter((task) => {
+        if (labelFilter !== null && !task.labels.includes(labelFilter)) return false;
         if (view === 'completed') return task.done;
         if (task.done) return false;
         if (view === 'today') return task.due !== null && task.due <= today;
         if (view === 'upcoming') return task.due !== null && task.due > today;
-        if (view === 'important') return task.priority >= 3;
+        if (view === 'important') return task.priority <= 2;
         return true;
       }).sort((left, right) => {
         if (left.done !== right.done) return left.done ? 1 : -1;
-        if (right.priority !== left.priority) return right.priority - left.priority;
+        if (left.priority !== right.priority) return left.priority - right.priority;
         if (left.due !== right.due) {
           if (left.due === null) return 1;
           if (right.due === null) return -1;
@@ -589,7 +808,7 @@ window.__ModuleLoader__.load({
         return left.createdAt - right.createdAt;
       });
 
-      const doneCount = counts.completed;
+      const doneCount = tasks.filter((task) => task.done).length;
       const progress = tasks.length === 0 ? 0 : doneCount / tasks.length;
       const emptyKeys = EMPTY_KEYS[view];
 
@@ -622,14 +841,41 @@ window.__ModuleLoader__.load({
 
       const priorityPopover = (taskId) => [
         h('div', { className: 'todo-popoverLabel', key: 'label' }, t('priorityLabel')),
-        ...[0, 1, 2, 3, 4].map((priority) => h('button', {
+        ...[1, 2, 3, 4].map((priority) => h('button', {
           type: 'button', className: 'todo-popoverRow', key: priority,
           onClick: () => { setPriority(taskId, priority); setPopover(null); },
         }, [
-          h('span', { style: { width: 10, height: 10, borderRadius: 3, background: PRIORITY_COLORS[priority], flex: 'none' } }),
-          h('span', {}, t(PRIORITY_KEYS[priority])),
+          h('span', { style: { width: 10, height: 10, borderRadius: 3, background: PRIORITY_COLORS[priority - 1], flex: 'none' } }),
+          h('span', {}, t(PRIORITY_KEYS[priority - 1])),
         ])),
       ];
+
+      const projectPopover = (id) => {
+        const project = projects.find((item) => item.id === id);
+        return [
+          h('button', {
+            type: 'button', className: 'todo-popoverRow', key: 'rename',
+            onClick: () => {
+              setRenamingId(id);
+              setRenameText(project === undefined ? '' : project.name);
+              setPopover(null);
+            },
+          }, t('renameProject')),
+          h('button', {
+            type: 'button', className: 'todo-popoverRow', key: 'delete',
+            onClick: () => { deleteProject(id); setPopover(null); },
+          }, t('deleteProject')),
+        ];
+      };
+
+      const railButton = (id, icon, label, count) => h('button', {
+        type: 'button', className: projectId === id ? 'todo-railItem todo-railItemActive' : 'todo-railItem',
+        onClick: () => setProjectId(id),
+      }, [
+        h('span', { className: 'todo-railIcon' }, icon),
+        h('span', { className: 'todo-railName' }, label),
+        h('span', { className: 'todo-railCount' }, String(count)),
+      ]);
 
       return h('div', { className: 'todo-root' }, [
         h('style', {}, CSS),
@@ -644,72 +890,120 @@ window.__ModuleLoader__.load({
               h(ProgressRing, { value: progress }),
             ]),
           ]),
-          h('div', { className: 'todo-views' }, VIEWS.map((key) => h('button', {
-            type: 'button',
-            key,
-            className: view === key ? 'todo-view todo-viewActive' : 'todo-view',
-            onClick: () => setView(key),
-            'aria-pressed': view === key,
-          }, [
-            h('span', {}, t(key)),
-            h('span', { className: 'todo-viewCount' }, String(counts[key])),
-          ]))),
         ]),
-        h('div', { className: 'todo-add' }, [
-          h('div', { className: 'todo-addRow' }, [
-            h('input', {
-              className: 'todo-addInput',
-              value: draft,
-              placeholder: t('addPlaceholder'),
-              onChange: (event) => setDraft(event.target.value),
-              onKeyDown: (event) => { if (event.key === 'Enter') addTask(); },
-              'aria-label': t('addPlaceholder'),
-            }),
-            h('button', {
-              type: 'button',
-              className: 'todo-addButton',
-              onClick: addTask,
-              disabled: draft.trim() === '',
-            }, t('add')),
+        h('div', { className: 'todo-body' }, [
+          h('div', { className: 'todo-rail' }, [
+            h('div', { className: 'todo-railSection' }, t('projects')),
+            railButton('all', h(InboxIcon), t('allProjects'), tasks.filter((task) => !task.done).length),
+            railButton('inbox', h(InboxIcon), t('inbox'), projectCount('inbox')),
+            ...projects.filter((project) => project.id !== 'inbox').map((project) => h('div', {
+              key: project.id, className: projectId === project.id ? 'todo-railItem todo-railItemActive' : 'todo-railItem',
+              onClick: () => setProjectId(project.id),
+            }, [
+              h('span', { className: 'todo-railDot', style: { background: PROJECT_COLORS[project.colorIndex % PROJECT_COLORS.length] } }),
+              renamingId === project.id
+                ? h('input', {
+                    className: 'todo-railInput', value: renameText, autoFocus: true,
+                    onClick: (event) => event.stopPropagation(),
+                    onChange: (event) => setRenameText(event.target.value),
+                    onKeyDown: (event) => {
+                      if (event.key === 'Enter') renameProject(project.id);
+                      else if (event.key === 'Escape') setRenamingId(null);
+                    },
+                    onBlur: () => renameProject(project.id),
+                    'aria-label': t('renameProject'),
+                  })
+                : h('span', { className: 'todo-railName' }, project.name),
+              h('span', { className: 'todo-railCount' }, String(projectCount(project.id))),
+              h('button', {
+                type: 'button', className: 'todo-railMenu',
+                onClick: (event) => { event.stopPropagation(); togglePopover('project', project.id)(event); },
+                'aria-label': t('projectMenu'), title: t('projectMenu'),
+              }, '⋯'),
+            ])),
+            addingProject
+              ? h('input', {
+                  className: 'todo-railInput', value: newProjectName, autoFocus: true,
+                  placeholder: t('newProjectPlaceholder'),
+                  onChange: (event) => setNewProjectName(event.target.value),
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter') addProject();
+                    else if (event.key === 'Escape') { setAddingProject(false); setNewProjectName(''); }
+                  },
+                  onBlur: () => { if (newProjectName.trim() === '') setAddingProject(false); },
+                  'aria-label': t('newProjectPlaceholder'),
+                })
+              : h('button', { type: 'button', className: 'todo-railAdd', onClick: () => { setAddingProject(true); setNewProjectName(''); } },
+                  [h(PlusIcon), h('span', {}, t('newProject'))]),
           ]),
-          h('p', { className: 'todo-hint' }, t('quickAddHint')),
+          h('div', { className: 'todo-main' }, [
+            h('div', { className: 'todo-views' }, VIEWS.map((key) => h('button', {
+              type: 'button', key,
+              className: view === key ? 'todo-view todo-viewActive' : 'todo-view',
+              onClick: () => setView(key), 'aria-pressed': view === key,
+            }, [
+              h('span', {}, t(key)),
+              h('span', { className: 'todo-viewCount' }, String(counts[key])),
+            ]))),
+            labelFilter === null ? null : h('div', { className: 'todo-labelFilter' }, [
+              h('span', { className: 'todo-labelFilterText' }, `${t('labelFilter')}: ${labelFilter}`),
+              h('button', {
+                type: 'button', className: 'todo-labelFilterClear',
+                onClick: () => setLabelFilter(null), 'aria-label': t('clearLabelFilter'),
+              }, '×'),
+            ]),
+            h('div', { className: 'todo-add' }, [
+              h('div', { className: 'todo-addRow' }, [
+                h('input', {
+                  className: 'todo-addInput', value: draft, placeholder: t('addPlaceholder'),
+                  onChange: (event) => setDraft(event.target.value),
+                  onKeyDown: (event) => { if (event.key === 'Enter') addTask(); },
+                  'aria-label': t('addPlaceholder'),
+                }),
+                h('button', {
+                  type: 'button', className: 'todo-addButton', onClick: addTask, disabled: draft.trim() === '',
+                }, t('add')),
+              ]),
+              h('p', { className: 'todo-hint' }, t('quickAddHint')),
+            ]),
+            view === 'completed' && counts.completed > 0
+              ? h('div', { className: 'todo-clear' }, [
+                  h('span', {}, t('completedCount', { count: counts.completed })),
+                  h('button', { type: 'button', className: 'todo-clearButton', onClick: clearCompleted }, t('clearCompleted')),
+                ])
+              : null,
+            h('div', { className: 'todo-list' }, visible.length === 0
+              ? h('div', { className: 'todo-empty' }, [
+                  h('div', { className: 'todo-emptyTitle' }, t(emptyKeys[0])),
+                  h('div', { className: 'todo-emptyText' }, t(emptyKeys[1])),
+                ])
+              : visible.map((task) => h(TaskRow, {
+                  key: task.id, t, task, today, labelFilter,
+                  editing: editingId === task.id, editText,
+                  onStartEdit: () => startEdit(task),
+                  onChangeEdit: setEditText,
+                  onSaveEdit: () => saveEdit(task.id),
+                  onCancelEdit: cancelEdit,
+                  onToggle: () => toggleTask(task.id),
+                  onDelete: () => deleteTask(task.id),
+                  onOpenPriority: togglePopover('priority', task.id),
+                  onOpenDue: togglePopover('due', task.id),
+                  onToggleLabel: (label) => setLabelFilter((current) => current === label ? null : label),
+                  onToggleSubtask: (subId) => toggleSubtask(task.id, subId),
+                  onAddSubtask: (text) => addSubtask(task.id, text),
+                  onDeleteSubtask: (subId) => deleteSubtask(task.id, subId),
+                }))),
+          ]),
         ]),
-        view === 'completed' && counts.completed > 0
-          ? h('div', { className: 'todo-clear' }, [
-              h('span', {}, t('completedCount', { count: counts.completed })),
-              h('button', { type: 'button', className: 'todo-clearButton', onClick: clearCompleted }, t('clearCompleted')),
-            ])
-          : null,
-        h('div', { className: 'todo-list' }, visible.length === 0
-          ? h('div', { className: 'todo-empty' }, [
-              h('div', { className: 'todo-emptyTitle' }, t(emptyKeys[0])),
-              h('div', { className: 'todo-emptyText' }, t(emptyKeys[1])),
-            ])
-          : visible.map((task) => h(TaskRow, {
-              key: task.id,
-              t,
-              task,
-              today,
-              editing: editingId === task.id,
-              editText,
-              onStartEdit: () => startEdit(task),
-              onChangeEdit: setEditText,
-              onSaveEdit: () => saveEdit(task.id),
-              onCancelEdit: cancelEdit,
-              onToggle: () => toggleTask(task.id),
-              onDelete: () => deleteTask(task.id),
-              onOpenPriority: togglePopover('priority', task.id),
-              onOpenDue: togglePopover('due', task.id),
-              onToggleSubtask: (subId) => toggleSubtask(task.id, subId),
-              onAddSubtask: (text) => addSubtask(task.id, text),
-              onDeleteSubtask: (subId) => deleteSubtask(task.id, subId),
-            }))),
         popover === null
           ? null
           : h(Popover, {
-              anchor: popover.anchor,
-              onClose: closePopover,
-            }, popover.kind === 'due' ? duePopover(popover.taskId) : priorityPopover(popover.taskId)),
+              anchor: popover.anchor, onClose: closePopover,
+            }, popover.kind === 'due'
+              ? duePopover(popover.key)
+              : popover.kind === 'priority'
+                ? priorityPopover(popover.key)
+                : projectPopover(popover.key)),
       ]);
     }
 
