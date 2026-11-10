@@ -1,10 +1,11 @@
 /**
  * Client half of the Agent Workflow Board bundle.
  *
- * Three views over one multi-agent workspace:
+ * Four views over one multi-agent workspace:
+ *  - Overview: workspace totals, the lead Session card, and a recent-activity feed.
  *  - Graph: the session lineage as a live agent DAG (Lead -> members -> grandchildren).
- *  - Timeline: durable workflow runs reconstructed from the Host's `workflow/*` feed.
- *  - Team: the Agent Team roster and shared task board of the lead Session.
+ *  - Timeline: durable workflow runs plus the agent-spawning rail.
+ *  - Team: the Agent Team roster and shared task board, with a lineage roster fallback.
  *
  * Registered as a left-sidebar panel, a center panel, and a right-sidebar tab.
  */
@@ -17,21 +18,43 @@ window.__ModuleLoader__.load({
 
     const NS = 'agent-workflow-board';
     const PANEL_ID = 'agent-workflow-board';
-    const WIDE_MIN = 720;
+    const WIDE_MIN = 780;
     const ACTIVE_MS = 2 * 60 * 60 * 1000;
     const RUNS_API = '/api/agent-workflow-board/runs';
-    const NODE_W = 212;
-    const NODE_H = 78;
-    const HGAP = 54;
-    const VGAP = 14;
+    const NODE_W = 248;
+    const NODE_H = 106;
+    const HGAP = 56;
+    const VGAP = 16;
 
     const dictionaries = {
       en: {
         panel: 'Agent workflow',
-        description: 'Live multi-agent workflow board: agent lineage graph, workflow run timeline and Agent Team task board.',
+        description: 'Live multi-agent workflow board: overview, agent lineage graph, workflow run timeline and Agent Team task board.',
+        'tab.overview': 'Overview',
         'tab.graph': 'Graph',
         'tab.timeline': 'Timeline',
         'tab.team': 'Team',
+        'overview.title': 'Overview',
+        'overview.lead': 'Current session',
+        'overview.pick': 'Pick a root session',
+        'overview.stats.sessions': 'Sessions',
+        'overview.stats.agents': 'Agents',
+        'overview.stats.running': 'Running',
+        'overview.stats.tokens': 'Tokens',
+        'overview.stats.runs': 'Workflow runs',
+        'overview.stats.duration': 'Agent time',
+        'overview.empty': 'No sessions yet.\nOpen a conversation or spawn a subagent to populate this board.',
+        'overview.activity': 'Recent activity',
+        'overview.activity.empty': 'No recorded activity yet.',
+        'overview.activity.session': 'Session updated',
+        'overview.activity.agent': 'Agent spawned',
+        'overview.activity.run': 'Workflow run',
+        'overview.activity.turn': 'Turn finished',
+        'overview.open': 'Open',
+        'overview.model': 'Model',
+        'overview.updated': 'Updated',
+        'overview.children': '{count} agents',
+        'overview.noModel': 'No model route yet',
         'graph.title': 'Agent graph',
         'graph.empty': 'No sessions yet.\nOpen a conversation or spawn a subagent to see the workflow graph.',
         'graph.showAll': 'Show all',
@@ -39,7 +62,9 @@ window.__ModuleLoader__.load({
         'graph.hidden': '{count} idle hidden',
         'graph.root': 'Root session',
         'graph.open': 'Open conversation',
-        'graph.children': '{count} agents',
+        'graph.current': 'Current',
+        'graph.agents': '{count} agents',
+        'graph.legend': 'Running · Done · Idle · Failed',
         tokens: 'Tokens',
         duration: 'Duration',
         'mode.continuable': 'continuable',
@@ -63,6 +88,10 @@ window.__ModuleLoader__.load({
         'timeline.interrupted': 'interrupted',
         'timeline.defaultPhase': 'Default phase',
         'timeline.open': 'Open agent conversation',
+        'timeline.agentRail': 'Agent spawning',
+        'timeline.agentRailEmpty': 'No subagent has been spawned in this workspace yet.',
+        'timeline.runSection': 'Workflow runs',
+        'timeline.runEmpty': 'No workflow runs recorded yet.',
         'team.title': 'Team',
         'team.empty': 'No Agent Team in this session.\nSpawn teammates to see the roster and the shared task board.',
         'team.roster': 'Roster',
@@ -76,16 +105,41 @@ window.__ModuleLoader__.load({
         'team.ready': 'Ready',
         'team.blocked': 'Blocked',
         'team.open': 'Open conversation',
+        'team.lineageTitle': 'Agent roster',
+        'team.lineageHint': 'This workspace has no Agent Team record yet. Showing every session in the lineage instead — spawn teammates to add roles, tasks and write scopes.',
+        'team.tasksEmpty': 'No shared tasks yet.',
         'task.pending': 'Pending',
         'task.in_progress': 'In progress',
         'task.completed': 'Completed',
       },
       zh: {
         panel: '代理工作流',
-        description: '实时多 Agent 工作流面板：代理代际关系图、工作流运行时间线、Agent 团队任务板。',
+        description: '实时多 Agent 工作流面板：总览、代理代际关系图、工作流运行时间线、Agent 团队任务板。',
+        'tab.overview': '总览',
         'tab.graph': '关系图',
         'tab.timeline': '时间线',
         'tab.team': '团队',
+        'overview.title': '总览',
+        'overview.lead': '当前会话',
+        'overview.pick': '选择根会话',
+        'overview.stats.sessions': '会话',
+        'overview.stats.agents': '代理',
+        'overview.stats.running': '运行中',
+        'overview.stats.tokens': 'Token',
+        'overview.stats.runs': '工作流',
+        'overview.stats.duration': '代理耗时',
+        'overview.empty': '还没有会话。\n打开一个对话或派生一个子代理，这里就会显示工作流内容。',
+        'overview.activity': '最近活动',
+        'overview.activity.empty': '还没有记录到活动。',
+        'overview.activity.session': '会话更新',
+        'overview.activity.agent': '派生代理',
+        'overview.activity.run': '工作流运行',
+        'overview.activity.turn': '回合结束',
+        'overview.open': '打开',
+        'overview.model': '模型',
+        'overview.updated': '更新于',
+        'overview.children': '{count} 个子代理',
+        'overview.noModel': '尚未选择模型',
         'graph.title': '代理关系图',
         'graph.empty': '还没有会话。\n打开一个对话或派生一个子代理，这里就会显示出工作流关系图。',
         'graph.showAll': '显示全部',
@@ -93,7 +147,9 @@ window.__ModuleLoader__.load({
         'graph.hidden': '已隐藏 {count} 个沉睡节点',
         'graph.root': '根会话',
         'graph.open': '打开会话',
-        'graph.children': '{count} 个子代理',
+        'graph.current': '当前',
+        'graph.agents': '{count} 个子代理',
+        'graph.legend': '运行中 · 已完成 · 待命 · 失败',
         tokens: 'Token',
         duration: '耗时',
         'mode.continuable': '可续聊',
@@ -117,6 +173,10 @@ window.__ModuleLoader__.load({
         'timeline.interrupted': '已中断',
         'timeline.defaultPhase': '默认阶段',
         'timeline.open': '打开子代理会话',
+        'timeline.agentRail': '代理派生',
+        'timeline.agentRailEmpty': '该工作区还没有派生过子代理。',
+        'timeline.runSection': '工作流运行',
+        'timeline.runEmpty': '还没有工作流运行记录。',
         'team.title': '团队',
         'team.empty': '当前会话没有 Agent 团队。\n派生队友后，这里会显示花名册与共享任务板。',
         'team.roster': '花名册',
@@ -130,6 +190,9 @@ window.__ModuleLoader__.load({
         'team.ready': '可开始',
         'team.blocked': '被阻塞',
         'team.open': '打开会话',
+        'team.lineageTitle': '代理名册',
+        'team.lineageHint': '该工作区还没有 Agent 团队记录，先展示会话血缘中的全部代理；派生队友后可显示角色、任务与可写范围。',
+        'team.tasksEmpty': '还没有共享任务。',
         'task.pending': '待处理',
         'task.in_progress': '进行中',
         'task.completed': '已完成',
@@ -137,33 +200,59 @@ window.__ModuleLoader__.load({
     };
 
     const CSS = [
-      '.awb-root{display:flex;flex-direction:column;height:100%;min-height:0;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px}',
+      '.awb-root{display:flex;flex-direction:column;flex:1 1 auto;height:100%;min-height:0;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px}',
       '.awb-view{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0}',
       '.awb-tabs{display:flex;gap:4px;padding:10px 14px 0;border-bottom:1px solid var(--dsw-alias-border-l1);flex:none}',
-      '.awb-tab{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;padding:6px 10px;border-radius:8px;cursor:pointer}',
+      '.awb-tab{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;padding:6px 11px;border-radius:8px;cursor:pointer}',
       '.awb-tab:hover{background:var(--dsw-alias-bg-layer-1)}',
-      '.awb-tabActive{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:550}',
+      '.awb-tabActive{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:600}',
       '.awb-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}',
-      '.awb-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;flex:none;flex-wrap:wrap}',
-      '.awb-toolbarTitle{font-size:14px;font-weight:600}',
+      '.awb-toolbar{display:flex;align-items:center;gap:8px;padding:12px 16px 8px;flex:none;flex-wrap:wrap}',
+      '.awb-toolbarTitle{font-size:15px;font-weight:650;letter-spacing:-0.01em}',
       '.awb-meta{font-size:11.5px;color:var(--dsw-alias-label-secondary)}',
-      '.awb-select{border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px;padding:3px 6px;max-width:220px}',
-      '.awb-btn{border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;padding:3px 9px;cursor:pointer}',
+      '.awb-select{border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;line-height:18px;padding:4px 7px;max-width:230px}',
+      '.awb-btn{border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:18px;padding:4px 10px;cursor:pointer}',
       '.awb-btn:hover{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}',
-      '.awb-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding:4px 14px 18px}',
-      '.awb-empty{padding:48px 16px;text-align:center;color:var(--dsw-alias-label-secondary);font-size:12.5px;white-space:pre-line}',
+      '.awb-scroll{flex:1 1 auto;min-height:0;overflow:auto;padding:6px 16px 22px}',
+      '.awb-scroll::-webkit-scrollbar{width:10px;height:10px}',
+      '.awb-scroll::-webkit-scrollbar-thumb{background:var(--dsw-alias-bg-layer-2);border-radius:6px;border:2px solid transparent;background-clip:content-box}',
+      '.awb-scroll::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-border-l2);background-clip:content-box}',
+      '.awb-empty{padding:44px 18px;text-align:center;color:var(--dsw-alias-label-secondary);font-size:12.5px;white-space:pre-line}',
+      '.awb-emptyIcon{width:40px;height:40px;border-radius:12px;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}',
       '.awb-legend{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--dsw-alias-label-secondary);margin-left:auto}',
+      /* overview */
+      '.awb-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:4px 0 16px}',
+      '.awb-stat{border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:11px 13px;min-width:0}',
+      '.awb-statLabel{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);letter-spacing:0.02em}',
+      '.awb-statValue{font-size:20px;line-height:27px;font-weight:650;letter-spacing:-0.02em;margin-top:2px;font-variant-numeric:tabular-nums}',
+      '.awb-statValueSm{font-size:14px;line-height:22px;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.awb-card{border:1px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1);padding:13px 15px;margin-bottom:16px}',
+      '.awb-cardHead{display:flex;align-items:center;gap:9px;min-width:0}',
+      '.awb-cardTitle{flex:1 1 auto;min-width:0;font-size:14px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-cardMeta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}',
+      '.awb-sectionTitle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:650;margin:4px 0 9px}',
+      '.awb-count{font-size:11px;color:var(--dsw-alias-label-secondary);font-weight:400;font-variant-numeric:tabular-nums}',
+      '.awb-feed{display:flex;flex-direction:column;gap:2px}',
+      '.awb-feedRow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px;min-width:0}',
+      '.awb-feedRow:hover{background:var(--dsw-alias-bg-layer-1)}',
+      '.awb-feedIcon{width:24px;height:24px;flex:none;border-radius:7px;background:var(--dsw-alias-bg-layer-2);display:flex;align-items:center;justify-content:center;font-size:12px}',
+      '.awb-feedText{flex:1 1 auto;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-feedTime{flex:none;font-size:10.5px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}',
+      /* graph */
       '.awb-graphScroll{height:100%;overflow:auto}',
       '.awb-graphCanvas{position:relative}',
       '.awb-graphEdges{position:absolute;left:0;top:0;pointer-events:none}',
-      '.awb-node{position:absolute;display:flex;flex-direction:column;gap:3px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);padding:7px 9px;box-sizing:border-box;overflow:hidden}',
+      '.awb-node{position:absolute;display:flex;flex-direction:column;gap:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:9px 11px;box-sizing:border-box;overflow:hidden}',
       '.awb-node:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2)}',
-      '.awb-nodeHead{display:flex;align-items:center;gap:6px;min-width:0}',
-      '.awb-nodeLabel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.awb-nodeOpen{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:16px;padding:1px 4px;border-radius:5px;cursor:pointer;flex:none}',
+      '.awb-nodeCurrent{border-color:var(--dsw-alias-brand-primary);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent)}',
+      '.awb-nodeHead{display:flex;align-items:center;gap:7px;min-width:0}',
+      '.awb-nodeLabel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:600;line-height:17px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+      '.awb-nodeOpen{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:16px;padding:2px 5px;border-radius:6px;cursor:pointer;flex:none}',
       '.awb-nodeOpen:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}',
-      '.awb-nodeMeta{display:flex;gap:4px;flex-wrap:wrap;min-width:0}',
-      '.awb-tag{font-size:10.5px;line-height:15px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:5px;padding:0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}',
+      '.awb-nodeMeta{display:flex;gap:4px;flex-wrap:wrap;min-width:0;align-items:center}',
+      '.awb-tag{font-size:10.5px;line-height:16px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:6px;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;font-variant-numeric:tabular-nums}',
+      '.awb-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;line-height:16px;border-radius:999px;padding:0 7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);flex:none}',
+      '.awb-pillText{font-variant-numeric:tabular-nums}',
       '.awb-dot{width:8px;height:8px;border-radius:50%;flex:none}',
       '.awb-dot--running{background:var(--dsw-alias-brand-primary)}',
       '.awb-dot--done{background:var(--dsw-alias-state-success-primary)}',
@@ -171,34 +260,39 @@ window.__ModuleLoader__.load({
       '.awb-dot--failed{background:var(--dsw-alias-state-error-primary)}',
       '.awb-dot--waiting{background:var(--dsw-alias-state-warn-primary)}',
       '.awb-listNode{margin:2px 0}',
-      '.awb-listRow{display:flex;align-items:center;gap:7px;padding:5px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1)}',
+      '.awb-listRow{display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}',
       '.awb-listRow:hover{background:var(--dsw-alias-bg-layer-2)}',
-      '.awb-listLabel{flex:1 1 auto;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-listLabel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.awb-listKids{margin-left:14px;border-left:1px solid var(--dsw-alias-border-l1);padding-left:8px}',
-      '.awb-run{border:1px solid var(--dsw-alias-border-l1);border-radius:11px;background:var(--dsw-alias-bg-layer-1);margin-bottom:10px;overflow:hidden}',
-      '.awb-runHead{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer}',
+      /* timeline */
+      '.awb-run{border:1px solid var(--dsw-alias-border-l1);border-radius:13px;background:var(--dsw-alias-bg-layer-1);margin-bottom:11px;overflow:hidden}',
+      '.awb-runHead{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer}',
       '.awb-runHead:hover{background:var(--dsw-alias-bg-layer-2)}',
-      '.awb-runName{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.awb-runMeta{font-size:10.5px;color:var(--dsw-alias-label-secondary);font-family:ui-monospace,monospace;white-space:nowrap}',
-      '.awb-runBody{border-top:1px solid var(--dsw-alias-border-l1);padding:10px 12px}',
-      '.awb-station{margin-bottom:12px}',
+      '.awb-runName{flex:1 1 auto;min-width:0;font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-runMeta{font-size:10.5px;color:var(--dsw-alias-label-secondary);font-family:ui-monospace,monospace;white-space:nowrap;font-variant-numeric:tabular-nums}',
+      '.awb-runBody{border-top:1px solid var(--dsw-alias-border-l1);padding:11px 13px}',
+      '.awb-station{margin-bottom:13px}',
       '.awb-station:last-child{margin-bottom:0}',
-      '.awb-stationHead{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;margin-bottom:6px}',
-      '.awb-stationCount{font-size:10.5px;color:var(--dsw-alias-label-secondary);font-weight:400}',
-      '.awb-pill{display:flex;align-items:center;gap:7px;padding:4px 8px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);margin-bottom:5px;font-size:12px}',
-      '.awb-pill:last-child{margin-bottom:0}',
-      '.awb-pillClick{cursor:pointer}',
-      '.awb-pillClick:hover{background:var(--dsw-alias-bg-layer-1)}',
+      '.awb-stationHead{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:650;margin-bottom:7px}',
+      '.awb-pillRow{display:flex;align-items:center;gap:8px;padding:5px 9px;border-radius:999px;background:var(--dsw-alias-bg-layer-2);margin-bottom:5px;font-size:12px}',
+      '.awb-pillRow:last-child{margin-bottom:0}',
+      '.awb-pillRowClick{cursor:pointer}',
+      '.awb-pillRowClick:hover{background:var(--dsw-alias-bg-layer-1)}',
       '.awb-pillLabel{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.awb-section{margin-bottom:16px}',
-      '.awb-sectionTitle{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:8px}',
-      '.awb-count{font-size:11px;color:var(--dsw-alias-label-secondary);font-weight:400}',
-      '.awb-member{display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1);margin-bottom:5px}',
-      '.awb-memberName{flex:1 1 auto;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.awb-task{border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1);padding:7px 9px;margin-bottom:6px}',
-      '.awb-taskTitle{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:550;margin-bottom:3px}',
+      '.awb-rail{position:relative;margin-left:5px;padding-left:20px;border-left:1px solid var(--dsw-alias-border-l2)}',
+      '.awb-railItem{position:relative;padding:0 0 14px 4px}',
+      '.awb-railItem:last-child{padding-bottom:2px}',
+      '.awb-railDot{position:absolute;left:-26px;top:4px;width:11px;height:11px;border-radius:50%;background:var(--dsw-alias-bg-layer-1);border:2px solid var(--dsw-alias-brand-primary)}',
+      '.awb-railTitle{font-size:12.5px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-railSub{font-size:11px;color:var(--dsw-alias-label-secondary);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      /* team */
+      '.awb-member{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:11px;background:var(--dsw-alias-bg-layer-1);margin-bottom:6px}',
+      '.awb-memberName{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-task{border:1px solid var(--dsw-alias-border-l1);border-radius:11px;background:var(--dsw-alias-bg-layer-1);padding:9px 11px;margin-bottom:7px}',
+      '.awb-taskTitle{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;margin-bottom:4px}',
       '.awb-taskSubject{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.awb-taskMeta{display:flex;gap:5px;flex-wrap:wrap;font-size:10.5px;color:var(--dsw-alias-label-secondary)}',
+      '.awb-hint{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);border:1px dashed var(--dsw-alias-border-l2);border-radius:10px;padding:9px 11px;margin-bottom:12px}',
     ].join('\n');
 
     /* ------------------------------------------------------------------ */
@@ -214,12 +308,36 @@ window.__ModuleLoader__.load({
     }
 
     function formatDuration(ms) {
-      if (ms === undefined || ms === null) return '';
+      if (ms === undefined || ms === null || !Number.isFinite(ms)) return '';
       const total = Math.max(0, Math.floor(ms / 1000));
-      const minutes = Math.floor(total / 60);
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
       const seconds = total % 60;
-      if (minutes === 0) return `${seconds}s`;
-      return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+      if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+      if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+      return `${seconds}s`;
+    }
+
+    function formatClock(ms) {
+      if (!ms) return '';
+      const date = new Date(ms);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatRelative(ms, now) {
+      if (!ms) return '';
+      const locale = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+      const delta = Math.max(0, now - ms);
+      const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+      const minutes = Math.floor(delta / 60000);
+      if (minutes < 1) return format.format(0, 'second');
+      if (minutes < 60) return format.format(-minutes, 'minute');
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return format.format(-hours, 'hour');
+      const days = Math.floor(hours / 24);
+      if (days < 7) return format.format(-days, 'day');
+      return new Date(ms).toLocaleDateString(locale);
     }
 
     function tokenTotal(usage) {
@@ -235,6 +353,7 @@ window.__ModuleLoader__.load({
     }
 
     function statusOf(rec, running) {
+      if (rec === undefined || rec === null) return 'idle';
       if (running === true) return 'running';
       if (rec.lastTurnCompleted === true) return 'done';
       if (rec.lastTurnCompleted === false) return 'failed';
@@ -243,11 +362,10 @@ window.__ModuleLoader__.load({
     }
 
     function displayTitle(rec) {
-      if (rec === undefined) return '';
+      if (rec === undefined || rec === null) return '';
       return rec.title || rec.displayTitle || rec.id;
     }
 
-    /** Build the parent/child lineage from the shared Session list snapshot. */
     function buildLineage(snapshot) {
       const raw = (snapshot && snapshot.byId) || {};
       const projections = (snapshot && snapshot.projectionsBySession) || {};
@@ -262,6 +380,7 @@ window.__ModuleLoader__.load({
           parentId: rec.parentId || rec.parentSessionId || '',
           blank: Boolean(rec.blank),
           updatedAt: rec.updatedAt || 0,
+          cwd: rec.cwd || '',
           running: Boolean(rec.running),
           lastTurnCompleted: values.subagentTiming ? values.subagentTiming.lastTurnCompleted : undefined,
           values,
@@ -284,14 +403,58 @@ window.__ModuleLoader__.load({
     }
 
     function nodeInfo(rec, now) {
+      if (rec === undefined || rec === null) {
+        return { label: '', model: undefined, mode: undefined, tokens: undefined, duration: undefined };
+      }
       const subagent = rec.values.subagent;
+      const selection = rec.values.modelSelection;
       return {
         label: rec.title || (subagent && subagent.label) || rec.displayTitle || rec.id.slice(0, 8),
-        model: rec.values.modelSelection ? rec.values.modelSelection.next && rec.values.modelSelection.next.model : undefined,
+        model: selection && selection.next ? selection.next.model : undefined,
         mode: subagent ? subagent.mode : undefined,
         tokens: tokenTotal(rec.values.tokenUsage),
         duration: timingDuration(rec.values, now),
       };
+    }
+
+    function summarize(lineage, statusMap, now) {
+      const counts = { total: 0, running: 0, done: 0, failed: 0, idle: 0, waiting: 0, tokens: 0, hasTokens: false, duration: 0, hasDuration: false };
+      for (const id of Object.keys(lineage.byId)) {
+        const rec = lineage.byId[id];
+        counts.total += 1;
+        counts[statusOf(rec, statusMap.get(id) ? statusMap.get(id).running : undefined)] += 1;
+        const tokens = tokenTotal(rec.values.tokenUsage);
+        if (tokens !== undefined) { counts.tokens += tokens; counts.hasTokens = true; }
+        const duration = timingDuration(rec.values, now);
+        if (duration !== undefined) { counts.duration += duration; counts.hasDuration = true; }
+      }
+      return counts;
+    }
+
+    /** Chronological feed of session updates and spawned agents. */
+    function collectActivity(lineage, limit) {
+      const events = [];
+      for (const id of Object.keys(lineage.byId)) {
+        const rec = lineage.byId[id];
+        if (rec.updatedAt) {
+          events.push({ at: rec.updatedAt, kind: 'session', sessionId: id, title: displayTitle(rec) });
+        }
+        const catalog = rec.values.subagentCatalog;
+        if (Array.isArray(catalog)) {
+          for (const entry of catalog) {
+            events.push({
+              at: entry.createdAt,
+              kind: 'agent',
+              sessionId: id,
+              childId: entry.id,
+              title: entry.label || entry.id,
+              mode: entry.mode,
+            });
+          }
+        }
+      }
+      events.sort((left, right) => right.at - left.at);
+      return typeof limit === 'number' ? events.slice(0, limit) : events;
     }
 
     function memberStatus(member, running) {
@@ -307,10 +470,40 @@ window.__ModuleLoader__.load({
     }
 
     function stopLabel(run, t) {
-      if (run.endedAt === 0) return t('timeline.running');
+      if (!run.endedAt) return t('timeline.running');
       const reason = run.stopReason || 'completed';
       const key = `timeline.${reason}`;
       return key in dictionaries.en ? t(key) : t('timeline.completed');
+    }
+
+    function useNow(intervalMs) {
+      const [now, setNow] = useState(() => Date.now());
+      useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), intervalMs);
+        return () => clearInterval(timer);
+      }, [intervalMs]);
+      return now;
+    }
+
+    function useWorkflowRuns() {
+      const [state, setState] = useState({ runs: [], ok: false });
+      useEffect(() => {
+        let stop = false;
+        const tick = () => {
+          fetch(RUNS_API, { cache: 'no-store' })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((json) => {
+              if (!stop && json !== null) setState({ runs: Array.isArray(json.runs) ? json.runs : [], ok: true });
+            })
+            .catch(() => {
+              if (!stop) setState((current) => ({ runs: current.runs, ok: false }));
+            });
+        };
+        tick();
+        const timer = setInterval(tick, 2000);
+        return () => { stop = true; clearInterval(timer); };
+      }, []);
+      return state;
     }
 
     /** Open one Session: subagents open in the right sidebar, others in the main view. */
@@ -343,17 +536,155 @@ window.__ModuleLoader__.load({
     }
 
     /* ------------------------------------------------------------------ */
+    /* shared bits                                                         */
+    /* ------------------------------------------------------------------ */
+
+    function Dot({ status }) {
+      return h('span', { className: `awb-dot awb-dot--${status}` });
+    }
+
+    function EmptyState({ t, message, icon }) {
+      return h('div', { className: 'awb-empty' }, [
+        h('div', { className: 'awb-emptyIcon', key: 'icon' }, icon || '🗂'),
+        h('div', { key: 'text' }, message),
+      ]);
+    }
+
+    function StatTile({ label, value, small }) {
+      return h('div', { className: 'awb-stat' }, [
+        h('div', { className: 'awb-statLabel', key: 'label' }, label),
+        h('div', { className: small ? 'awb-statValueSm' : 'awb-statValue', key: 'value' }, value),
+      ]);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* overview                                                            */
+    /* ------------------------------------------------------------------ */
+
+    function OverviewView(props) {
+      const { leadSessionId, useSessions, useSessionStatus, openSession, t, now, runs, runCount } = props;
+      const snapshot = useSessions((state) => state);
+      const statusMap = useSessionStatus((state) => state);
+      const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
+      const stats = useMemo(() => summarize(lineage, statusMap, now), [lineage, statusMap, now]);
+      const activity = useMemo(() => collectActivity(lineage, 12), [lineage]);
+      const lead = leadSessionId !== '' ? lineage.byId[leadSessionId] : undefined;
+      const leadInfo = lead ? nodeInfo(lead, now) : undefined;
+      const leadStatus = lead ? statusOf(lead, statusMap.get(lead.id) ? statusMap.get(lead.id).running : undefined) : 'idle';
+
+      return h('div', { className: 'awb-view' }, [
+        h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
+          h('span', { className: 'awb-toolbarTitle', key: 'title' }, t('overview.title')),
+          h('span', { className: 'awb-meta', key: 'meta' },
+            `${stats.total} ${t('overview.stats.sessions').toLowerCase()} · ${stats.running} ${t('status.running').toLowerCase()}`),
+        ]),
+        h('div', { className: 'awb-scroll', key: 'scroll' }, [
+          stats.total === 0
+            ? EmptyState({ t, message: t('overview.empty'), icon: '🗂' })
+            : [
+              h('div', { className: 'awb-stats', key: 'stats' }, [
+                h(StatTile, { key: 'sessions', label: t('overview.stats.sessions'), value: String(stats.total) }),
+                h(StatTile, { key: 'agents', label: t('overview.stats.agents'), value: String(countAgents(lineage)) }),
+                h(StatTile, { key: 'running', label: t('overview.stats.running'), value: String(stats.running) }),
+                h(StatTile, {
+                  key: 'tokens', label: t('overview.stats.tokens'),
+                  value: stats.hasTokens ? formatTokens(stats.tokens) : '—', small: true,
+                }),
+                h(StatTile, {
+                  key: 'runs', label: t('overview.stats.runs'),
+                  value: String(runCount), small: true,
+                }),
+              ]),
+              lead !== undefined
+                ? h('div', { className: 'awb-card', key: 'lead' }, [
+                  h('div', { className: 'awb-cardHead' }, [
+                    h(Dot, { status: leadStatus, key: 'dot' }),
+                    h('span', { className: 'awb-cardTitle', title: leadInfo.label, key: 'title' }, leadInfo.label),
+                    h('span', { className: 'awb-pill', key: 'status' }, [
+                      h('span', { className: `awb-dot awb-dot--${leadStatus}`, key: 'pilldot' }),
+                      h('span', { className: 'awb-pillText', key: 'pilltext' }, t(`status.${leadStatus}`)),
+                    ]),
+                    h('button', {
+                      type: 'button', className: 'awb-nodeOpen', title: t('overview.open'),
+                      'aria-label': t('overview.open'), onClick: () => openSession(lead.id), key: 'open',
+                    }, t('overview.open')),
+                  ]),
+                  h('div', { className: 'awb-cardMeta' }, [
+                    leadInfo.model ? h('span', { className: 'awb-tag', key: 'model' }, `⚡ ${leadInfo.model}`) : null,
+                    h('span', { className: 'awb-tag', key: 'updated' },
+                      `${t('overview.updated')} ${formatRelative(lead.updatedAt, now)}`),
+                    leadInfo.tokens !== undefined ? h('span', { className: 'awb-tag', key: 'tokens' },
+                      `${t('tokens')} ${formatTokens(leadInfo.tokens)}`) : null,
+                    leadInfo.duration !== undefined ? h('span', { className: 'awb-tag', key: 'duration' },
+                      `${t('duration')} ${formatDuration(leadInfo.duration)}`) : null,
+                    (lineage.children[lead.id] || []).length > 0
+                      ? h('span', { className: 'awb-tag', key: 'children' },
+                        t('overview.children', { count: (lineage.children[lead.id] || []).length }))
+                      : null,
+                  ]),
+                ])
+                : null,
+              h('div', { className: 'awb-sectionTitle', key: 'activityTitle' }, [
+                t('overview.activity'),
+                h('span', { className: 'awb-count', key: 'count' }, String(activity.length)),
+              ]),
+              activity.length === 0
+                ? h('div', { className: 'awb-meta', key: 'activityEmpty' }, t('overview.activity.empty'))
+                : h('div', { className: 'awb-feed', key: 'feed' }, activity.map((event) => h('div', {
+                    className: 'awb-feedRow', key: `${event.kind}-${event.at}-${event.sessionId}`,
+                  }, [
+                    h('span', { className: 'awb-feedIcon', key: 'icon' },
+                      event.kind === 'agent' ? '🤖' : event.kind === 'run' ? '⚡' : '💬'),
+                    h('span', { className: 'awb-feedText', key: 'text' },
+                      `${t(`overview.activity.${event.kind}`)} · ${event.title}`),
+                    h('span', { className: 'awb-feedTime', key: 'time' }, formatRelative(event.at, now)),
+                    h('button', {
+                      type: 'button', className: 'awb-nodeOpen', key: 'open',
+                      title: t('overview.open'), 'aria-label': t('overview.open'),
+                      onClick: () => openSession(event.childId || event.sessionId),
+                    }, '→'),
+                  ]))),
+              runs.length > 0
+                ? h('div', { className: 'awb-sectionTitle', key: 'runTitle' }, [
+                  t('timeline.runSection'),
+                  h('span', { className: 'awb-count', key: 'count' }, String(runs.length)),
+                ])
+                : null,
+              ...(runs.length > 0
+                ? runs.slice(0, 3).map((run) => h('div', { className: 'awb-feedRow', key: `run-${run.id}` }, [
+                  h('span', { className: 'awb-feedIcon', key: 'icon' }, '⚡'),
+                  h('span', { className: 'awb-feedText', key: 'text' }, run.name),
+                  h('span', { className: 'awb-feedTime', key: 'time' }, formatRelative(run.startedAt, now)),
+                ]))
+                : []),
+            ],
+        ]),
+      ]);
+    }
+
+    function countAgents(lineage) {
+      let total = 0;
+      const walk = (id) => {
+        const kids = lineage.children[id] || [];
+        total += kids.length;
+        for (const kid of kids) walk(kid);
+      };
+      for (const root of lineage.roots) walk(root);
+      return total;
+    }
+
+    /* ------------------------------------------------------------------ */
     /* graph view                                                          */
     /* ------------------------------------------------------------------ */
 
     function NodeCard(props) {
-      const { node, info, status, t, onOpen } = props;
+      const { node, info, status, current, t, onOpen } = props;
       return h('div', {
-        className: 'awb-node',
+        className: `awb-node${current ? ' awb-nodeCurrent' : ''}`,
         style: { left: node.x, top: node.y, width: NODE_W, height: NODE_H },
       }, [
         h('div', { className: 'awb-nodeHead', key: 'head' }, [
-          h('span', { className: `awb-dot awb-dot--${status}`, title: t(`status.${status}`), key: 'dot' }),
+          h(Dot, { status, key: 'dot' }),
           h('span', { className: 'awb-nodeLabel', title: info.label, key: 'label' }, info.label),
           h('button', {
             type: 'button', className: 'awb-nodeOpen', title: t('graph.open'),
@@ -361,23 +692,35 @@ window.__ModuleLoader__.load({
           }, '💬'),
         ]),
         h('div', { className: 'awb-nodeMeta', key: 'meta1' }, [
-          info.model ? h('span', { className: 'awb-tag', title: info.model, key: 'model' }, `⚡ ${info.model}`) : null,
+          h('span', { className: `awb-pill awb-pill--${status}`, key: 'status' }, [
+            h('span', { className: `awb-dot awb-dot--${status}`, key: 'pilldot' }),
+            h('span', { className: 'awb-pillText', key: 'pilltext' }, t(`status.${status}`)),
+          ]),
+          current ? h('span', { className: 'awb-tag', key: 'current' }, t('graph.current')) : null,
           info.mode ? h('span', { className: 'awb-tag', key: 'mode' }, t(`mode.${info.mode}`)) : null,
-          node.childCount > 0 ? h('span', { className: 'awb-tag', key: 'children' }, t('graph.children', { count: node.childCount })) : null,
         ]),
         h('div', { className: 'awb-nodeMeta', key: 'meta2' }, [
-          info.tokens !== undefined ? h('span', { className: 'awb-tag', key: 'tokens' }, `${t('tokens')} ${formatTokens(info.tokens)}`) : null,
-          info.duration !== undefined ? h('span', { className: 'awb-tag', key: 'duration' }, `${t('duration')} ${formatDuration(info.duration)}`) : null,
+          info.model ? h('span', { className: 'awb-tag', title: info.model, key: 'model' }, `⚡ ${info.model}`) : null,
+          info.tokens !== undefined ? h('span', { className: 'awb-tag', key: 'tokens' },
+            `${t('tokens')} ${formatTokens(info.tokens)}`) : null,
+        ]),
+        h('div', { className: 'awb-nodeMeta', key: 'meta3' }, [
+          info.duration !== undefined ? h('span', { className: 'awb-tag', key: 'duration' },
+            `${t('duration')} ${formatDuration(info.duration)}`) : null,
+          node.childCount > 0 ? h('span', { className: 'awb-tag', key: 'children' },
+            t('graph.agents', { count: node.childCount })) : null,
         ]),
       ]);
     }
 
     function ListTree(props) {
-      const { root, lineage, statusOfNode, infoOf, t, onOpen, depth } = props;
+      const { root, lineage, statusOfNode, infoOf, currentId, t, onOpen, depth } = props;
+      const info = infoOf(root.id);
       return h('div', { className: 'awb-listNode' }, [
         h('div', { className: 'awb-listRow', style: { marginLeft: depth * 16 }, key: 'row' }, [
-          h('span', { className: `awb-dot awb-dot--${statusOfNode(root.id)}`, key: 'dot' }),
-          h('span', { className: 'awb-listLabel', title: infoOf(root.id).label, key: 'label' }, infoOf(root.id).label),
+          h(Dot, { status: statusOfNode(root.id), key: 'dot' }),
+          h('span', { className: 'awb-listLabel', title: info.label, key: 'label' }, info.label),
+          currentId === root.id ? h('span', { className: 'awb-tag', key: 'current' }, t('graph.current')) : null,
           h('button', {
             type: 'button', className: 'awb-nodeOpen', title: t('graph.open'),
             'aria-label': t('graph.open'), onClick: () => onOpen(root.id), key: 'open',
@@ -385,26 +728,20 @@ window.__ModuleLoader__.load({
         ]),
         root.kids.length > 0
           ? h('div', { className: 'awb-listKids', key: 'kids' }, root.kids.map((kid) => h(ListTree, {
-            key: kid.id, root: kid, lineage, statusOfNode, infoOf, t, onOpen, depth: depth + 1,
+            key: kid.id, root: kid, lineage, statusOfNode, infoOf, currentId, t, onOpen, depth: depth + 1,
           })))
           : null,
       ]);
     }
 
     function GraphView(props) {
-      const { useSessions, useSessionStatus, openSession, t } = props;
+      const { useSessions, useSessionStatus, openSession, t, now, currentId } = props;
       const snapshot = useSessions((state) => state);
       const statusMap = useSessionStatus((state) => state);
       const [rootId, setRootId] = useState('');
       const [showAll, setShowAll] = useState(false);
       const [wide, setWide] = useState(true);
-      const [now, setNow] = useState(() => Date.now());
       const wrapRef = useRef(null);
-
-      useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), 5000);
-        return () => clearInterval(timer);
-      }, []);
 
       useEffect(() => {
         const el = wrapRef.current;
@@ -417,6 +754,7 @@ window.__ModuleLoader__.load({
       }, []);
 
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
+      const stats = useMemo(() => summarize(lineage, statusMap, now), [lineage, statusMap, now]);
       const infoOf = (id) => nodeInfo(lineage.byId[id], now);
       const statusOfNode = (id) => statusOf(lineage.byId[id], statusMap.get(id) ? statusMap.get(id).running : undefined);
 
@@ -479,6 +817,8 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'awb-view', ref: wrapRef }, [
         h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
           h('span', { className: 'awb-toolbarTitle', key: 'title' }, t('graph.title')),
+          h('span', { className: 'awb-meta', key: 'summary' },
+            `${stats.total} ${t('overview.stats.sessions').toLowerCase()} · ${countAgents(lineage)} ${t('overview.stats.agents').toLowerCase()} · ${stats.running} ${t('status.running').toLowerCase()}`),
           lineage.roots.length > 1
             ? h('select', {
               className: 'awb-select', value: effectiveRoot, title: t('graph.root'),
@@ -497,7 +837,7 @@ window.__ModuleLoader__.load({
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
           tree === null
-            ? h('div', { className: 'awb-empty', key: 'empty' }, t('graph.empty'))
+            ? EmptyState({ t, message: t('graph.empty'), icon: '🕸' })
             : wide
               ? h('div', { className: 'awb-graphScroll', key: 'wide' }, [
                 h('div', { className: 'awb-graphCanvas', style: { width, height }, key: 'canvas' }, [
@@ -510,12 +850,13 @@ window.__ModuleLoader__.load({
                   }))),
                   nodes.map((node) => h(NodeCard, {
                     key: node.id, node, info: infoOf(node.id),
-                    status: statusOfNode(node.id), t, onOpen: openSession,
+                    status: statusOfNode(node.id), current: currentId === node.id,
+                    t, onOpen: openSession,
                   })),
                 ]),
               ])
               : h('div', { key: 'narrow' }, h(ListTree, {
-                root: tree, lineage, statusOfNode, infoOf, t, onOpen: openSession, depth: 0,
+                root: tree, lineage, statusOfNode, infoOf, currentId, t, onOpen: openSession, depth: 0,
               })),
         ]),
       ]);
@@ -545,7 +886,7 @@ window.__ModuleLoader__.load({
 
       return h('div', { className: 'awb-run' }, [
         h('div', { className: 'awb-runHead', onClick: () => setOpen((value) => !value), key: 'head' }, [
-          h('span', { className: `awb-dot awb-dot--${status}`, key: 'dot' }),
+          h(Dot, { status, key: 'dot' }),
           h('span', { className: 'awb-runName', title: run.name, key: 'name' }, run.name),
           h('span', { className: 'awb-runMeta', key: 'meta' },
             `${time} · ${agents.length} · ${stopLabel(run, t)}`),
@@ -555,20 +896,24 @@ window.__ModuleLoader__.load({
             [...byPhase.entries()].map(([phase, list]) => h('div', { className: 'awb-station', key: phase }, [
               h('div', { className: 'awb-stationHead', key: 'head' }, [
                 h('span', { key: 'name' }, phase),
-                h('span', { className: 'awb-stationCount', key: 'count' }, String(list.length)),
+                h('span', { className: 'awb-count', key: 'count' }, String(list.length)),
               ]),
               list.map((agent) => h('div', {
                 key: agent.seq,
-                className: `awb-pill${agent.childId ? ' awb-pillClick' : ''}`,
+                className: `awb-pillRow${agent.childId ? ' awb-pillRowClick' : ''}`,
                 title: agent.childId ? t('timeline.open') : undefined,
                 onClick: agent.childId ? () => openSession(agent.childId) : undefined,
               }, [
-                h('span', { className: `awb-dot awb-dot--${agent.status === 'done' ? 'done' : agent.status === 'failed' ? 'failed' : 'running'}`, key: 'dot' }),
+                h(Dot, {
+                  status: agent.status === 'done' ? 'done' : agent.status === 'failed' ? 'failed' : 'running',
+                  key: 'dot',
+                }),
                 h('span', { className: 'awb-pillLabel', key: 'label' }, agent.label),
               ])),
             ])),
             Array.isArray(run.logs) && run.logs.length > 0
-              ? h('div', { className: 'awb-taskMeta', key: 'logs' }, run.logs.slice(-3).map((line, index) => h('span', { key: index }, line)))
+              ? h('div', { className: 'awb-taskMeta', key: 'logs' },
+                run.logs.slice(-3).map((line, index) => h('span', { key: index }, line)))
               : null,
           ])
           : null,
@@ -576,39 +921,40 @@ window.__ModuleLoader__.load({
     }
 
     function TimelineView(props) {
-      const { openSession, t } = props;
-      const [data, setData] = useState({ runs: [], ok: false });
-
-      useEffect(() => {
-        let stop = false;
-        const tick = () => {
-          fetch(RUNS_API, { cache: 'no-store' })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((json) => {
-              if (!stop && json !== null) setData({ runs: Array.isArray(json.runs) ? json.runs : [], ok: true });
-            })
-            .catch(() => {
-              if (!stop) setData((current) => ({ runs: current.runs, ok: false }));
-            });
-        };
-        tick();
-        const timer = setInterval(tick, 2000);
-        return () => { stop = true; clearInterval(timer); };
-      }, []);
-
-      const runs = data.runs;
-      const totalAgents = runs.reduce((total, run) => total + (Array.isArray(run.agents) ? run.agents.length : 0), 0);
+      const { useSessions, openSession, t, now, runs, runOk } = props;
+      const snapshot = useSessions((state) => state);
+      const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
+      const agentEvents = useMemo(() => collectActivity(lineage, 40).filter((event) => event.kind === 'agent'), [lineage]);
+      const totalRunAgents = runs.reduce((total, run) => total + (Array.isArray(run.agents) ? run.agents.length : 0), 0);
 
       return h('div', { className: 'awb-view' }, [
         h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
           h('span', { className: 'awb-toolbarTitle', key: 'title' }, t('timeline.title')),
           h('span', { className: 'awb-meta', key: 'meta' },
-            `${t('timeline.runs', { count: runs.length })} · ${t('timeline.agents', { count: totalAgents })}${data.ok ? '' : ` · ${t('timeline.offline')}`}`),
+            `${t('timeline.runs', { count: runs.length })} · ${t('timeline.agents', { count: totalRunAgents })}${runOk ? '' : ` · ${t('timeline.offline')}`}`),
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
+          h('div', { className: 'awb-sectionTitle', key: 'runSection' }, [
+            t('timeline.runSection'),
+            h('span', { className: 'awb-count', key: 'count' }, String(runs.length)),
+          ]),
           runs.length === 0
-            ? h('div', { className: 'awb-empty', key: 'empty' }, t('timeline.empty'))
+            ? h('div', { className: 'awb-hint', key: 'runEmpty' }, t('timeline.runEmpty'))
             : runs.slice().reverse().map((run) => h(RunCard, { key: run.id, run, t, openSession })),
+          h('div', { className: 'awb-sectionTitle', key: 'railSection' }, [
+            t('timeline.agentRail'),
+            h('span', { className: 'awb-count', key: 'count' }, String(agentEvents.length)),
+          ]),
+          agentEvents.length === 0
+            ? h('div', { className: 'awb-hint', key: 'railEmpty' }, t('timeline.agentRailEmpty'))
+            : h('div', { className: 'awb-rail', key: 'rail' }, agentEvents.map((event) => h('div', {
+                className: 'awb-railItem', key: `${event.at}-${event.childId}`,
+              }, [
+                h('span', { className: 'awb-railDot', key: 'dot' }),
+                h('div', { className: 'awb-railTitle', key: 'title' }, event.title),
+                h('div', { className: 'awb-railSub', key: 'sub' },
+                  `${t('overview.activity.agent')} · ${formatClock(event.at)} · ${t(`mode.${event.mode || 'unknown'}`)}`),
+              ]))),
         ]),
       ]);
     }
@@ -618,9 +964,10 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function TeamView(props) {
-      const { leadSessionId, useSessions, useSessionStatus, openSession, t } = props;
+      const { leadSessionId, useSessions, useSessionStatus, openSession, t, now } = props;
       const snapshot = useSessions((state) => state);
       const statusMap = useSessionStatus((state) => state);
+      const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const team = leadSessionId !== '' && snapshot.projectionsBySession[leadSessionId] !== undefined
         ? snapshot.projectionsBySession[leadSessionId].values.agentTeam
         : undefined;
@@ -630,6 +977,21 @@ window.__ModuleLoader__.load({
         const values = snapshot.projectionsBySession[id] ? snapshot.projectionsBySession[id].values : undefined;
         return values && values.modelSelection && values.modelSelection.next ? values.modelSelection.next.model : undefined;
       };
+      const roster = members.length > 0
+        ? members.map((member) => ({
+          id: member.id,
+          name: member.name,
+          role: member.role,
+          status: memberStatus(member, statusMap.get(member.id) ? statusMap.get(member.id).running : undefined),
+          model: modelOf(member.id),
+        }))
+        : collectActivity(lineage).filter((event) => event.kind === 'agent').map((event) => ({
+          id: event.childId,
+          name: event.title,
+          role: 'member',
+          status: statusOf(lineage.byId[event.childId], statusMap.get(event.childId) ? statusMap.get(event.childId).running : undefined),
+          model: nodeInfo(lineage.byId[event.childId], now).model,
+        }));
 
       return h('div', { className: 'awb-view' }, [
         h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
@@ -640,49 +1002,59 @@ window.__ModuleLoader__.load({
             : null,
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
-          team === undefined
-            ? h('div', { className: 'awb-empty', key: 'empty' }, t('team.empty'))
+          team === undefined && roster.length === 0
+            ? EmptyState({ t, message: t('team.empty'), icon: '👥' })
             : [
-              team.failure ? h('div', { className: 'awb-empty', key: 'failure' }, team.failure) : null,
-              h('div', { className: 'awb-section', key: 'roster' }, [
-                h('div', { className: 'awb-sectionTitle', key: 'rosterTitle' }, [
-                  t('team.roster'),
-                  h('span', { className: 'awb-count', key: 'count' }, String(members.length)),
-                ]),
-                members.length === 0
-                  ? h('div', { className: 'awb-empty', key: 'rosterEmpty' }, t('team.empty'))
-                  : members.map((member) => h('div', { key: member.id, className: 'awb-member' }, [
-                    h('span', { className: `awb-dot awb-dot--${memberStatus(member, statusMap.get(member.id) ? statusMap.get(member.id).running : undefined)}`, key: 'dot' }),
-                    h('span', { className: 'awb-memberName', title: member.name, key: 'name' }, member.name),
-                    h('span', { className: 'awb-tag', key: 'role' }, t(member.role === 'lead' ? 'team.lead' : 'team.member')),
-                    modelOf(member.id) ? h('span', { className: 'awb-tag', key: 'model' }, `⚡ ${modelOf(member.id)}`) : null,
-                    h('button', {
-                      type: 'button', className: 'awb-nodeOpen', title: t('team.open'),
-                      'aria-label': t('team.open'), onClick: () => openSession(member.id), key: 'open',
-                    }, '💬'),
-                  ])),
+              team === undefined && roster.length > 0
+                ? h('div', { className: 'awb-hint', key: 'hint' }, t('team.lineageHint'))
+                : null,
+              h('div', { className: 'awb-sectionTitle', key: 'rosterTitle' }, [
+                t(team !== undefined ? 'team.roster' : 'team.lineageTitle'),
+                h('span', { className: 'awb-count', key: 'count' }, String(roster.length)),
               ]),
-              h('div', { className: 'awb-section', key: 'tasks' }, [
-                h('div', { className: 'awb-sectionTitle', key: 'tasksTitle' }, [
+              roster.length === 0
+                ? h('div', { className: 'awb-meta', key: 'rosterEmpty' }, t('team.empty'))
+                : roster.map((member) => h('div', { key: member.id, className: 'awb-member' }, [
+                  h(Dot, { status: member.status, key: 'dot' }),
+                  h('span', { className: 'awb-memberName', title: member.name, key: 'name' }, member.name),
+                  h('span', { className: 'awb-tag', key: 'role' },
+                    t(member.role === 'lead' ? 'team.lead' : 'team.member')),
+                  member.model ? h('span', { className: 'awb-tag', key: 'model' }, `⚡ ${member.model}`) : null,
+                  h('button', {
+                    type: 'button', className: 'awb-nodeOpen', title: t('team.open'),
+                    'aria-label': t('team.open'), onClick: () => openSession(member.id), key: 'open',
+                  }, '💬'),
+                ])),
+              team !== undefined
+                ? h('div', { className: 'awb-sectionTitle', key: 'tasksTitle' }, [
                   t('team.tasks'),
                   h('span', { className: 'awb-count', key: 'count' }, String(tasks.length)),
-                ]),
-                tasks.length === 0
-                  ? h('div', { className: 'awb-empty', key: 'tasksEmpty' }, t('team.empty'))
-                  : tasks.map((task) => h('div', { key: task.id, className: 'awb-task' }, [
-                    h('div', { className: 'awb-taskTitle', key: 'title' }, [
-                      h('span', { className: `awb-dot awb-dot--${taskStatus(task)}`, key: 'dot' }),
-                      h('span', { className: 'awb-taskSubject', title: task.subject, key: 'subject' }, task.subject),
-                    ]),
-                    h('div', { className: 'awb-taskMeta', key: 'meta' }, [
-                      h('span', { key: 'status' }, t(`task.${task.status}`)),
-                      h('span', { key: 'owner' }, `${t('team.owner')}: ${task.ownerName || t('team.unowned')}`),
-                      task.status === 'pending' ? h('span', { key: 'ready' }, task.ready ? t('team.ready') : t('team.blocked')) : null,
-                      task.blockedBy && task.blockedBy.length > 0 ? h('span', { key: 'blockedBy' }, `${t('team.blockedBy')}: ${task.blockedBy.length}`) : null,
-                      task.writeScopes && task.writeScopes.length > 0 ? h('span', { key: 'writeScopes' }, `${t('team.writeScopes')}: ${task.writeScopes.join(', ')}`) : null,
-                    ]),
-                  ])),
-              ]),
+                ])
+                : null,
+              team !== undefined && tasks.length === 0
+                ? h('div', { className: 'awb-meta', key: 'tasksEmpty' }, t('team.tasksEmpty'))
+                : null,
+              team !== undefined
+                ? tasks.map((task) => h('div', { key: task.id, className: 'awb-task' }, [
+                  h('div', { className: 'awb-taskTitle', key: 'title' }, [
+                    h(Dot, { status: taskStatus(task), key: 'dot' }),
+                    h('span', { className: 'awb-taskSubject', title: task.subject, key: 'subject' }, task.subject),
+                  ]),
+                  h('div', { className: 'awb-taskMeta', key: 'meta' }, [
+                    h('span', { key: 'status' }, t(`task.${task.status}`)),
+                    h('span', { key: 'owner' }, `${t('team.owner')}: ${task.ownerName || t('team.unowned')}`),
+                    task.status === 'pending'
+                      ? h('span', { key: 'ready' }, task.ready ? t('team.ready') : t('team.blocked'))
+                      : null,
+                    task.blockedBy && task.blockedBy.length > 0
+                      ? h('span', { key: 'blockedBy' }, `${t('team.blockedBy')}: ${task.blockedBy.length}`)
+                      : null,
+                    task.writeScopes && task.writeScopes.length > 0
+                      ? h('span', { key: 'writeScopes' }, `${t('team.writeScopes')}: ${task.writeScopes.join(', ')}`)
+                      : null,
+                  ]),
+                ]))
+                : null,
             ],
         ]),
       ]);
@@ -695,6 +1067,7 @@ window.__ModuleLoader__.load({
     function TabBar(props) {
       const { tab, setTab, t } = props;
       const tabs = [
+        ['overview', t('tab.overview')],
         ['graph', t('tab.graph')],
         ['timeline', t('tab.timeline')],
         ['team', t('tab.team')],
@@ -705,46 +1078,67 @@ window.__ModuleLoader__.load({
       }, label)));
     }
 
-    function MainPanel(props) {
-      const { useSessions, useSessionStatus, openSession, t } = props;
-      const [tab, setTab] = useState('graph');
+    function PanelBody(props) {
+      const {
+        tab, setTab, t, now, runs, runOk,
+        useSessions, useSessionStatus, useSession, sessionId, leadSessionId, openSession,
+      } = props;
       const snapshot = useSessions((state) => state);
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
-      // The team view follows the Session shown in the main column, else the newest root.
-      const mainId = Object.values(snapshot.byId)
-        .find((rec) => rec.retainedBy && rec.retainedBy.mainView > 0);
-      const lead = (mainId && mainId.id) || lineage.roots[0] || '';
+      const currentId = (() => {
+        const found = Object.values((snapshot && snapshot.byId) || {})
+          .find((rec) => rec.retainedBy && rec.retainedBy.mainView > 0);
+        return (found && found.id) || sessionId || leadSessionId || '';
+      })();
+      const lead = leadSessionId || sessionId || lineage.roots[0] || '';
 
       return h('div', { className: 'awb-root' }, [
         h('style', { dangerouslySetInnerHTML: { __html: CSS }, key: 'style' }),
         h(TabBar, { tab, setTab, t, key: 'tabs' }),
         h('div', { className: 'awb-body', key: 'body' }, [
-          tab === 'graph'
-            ? h(GraphView, { useSessions, useSessionStatus, openSession, t, key: 'view' })
-            : tab === 'timeline'
-              ? h(TimelineView, { openSession, t, key: 'view' })
-              : h(TeamView, { leadSessionId: lead, useSessions, useSessionStatus, openSession, t, key: 'view' }),
+          tab === 'overview'
+            ? h(OverviewView, {
+              leadSessionId: lead, useSessions, useSessionStatus, openSession, t, now,
+              runs, runCount: runs.length, key: 'view',
+            })
+            : tab === 'graph'
+              ? h(GraphView, {
+                useSessions, useSessionStatus, openSession, t, now, currentId, key: 'view',
+              })
+              : tab === 'timeline'
+                ? h(TimelineView, {
+                  useSessions, openSession, t, now, runs, runOk, key: 'view',
+                })
+                : h(TeamView, {
+                  leadSessionId: lead, useSessions, useSessionStatus, openSession, t, now, key: 'view',
+                }),
         ]),
       ]);
     }
 
+    function MainPanel(props) {
+      const { useSessions, useSessionStatus, openSession, t } = props;
+      const [tab, setTab] = useState('overview');
+      const now = useNow(15000);
+      const { runs, ok } = useWorkflowRuns();
+      return h(PanelBody, {
+        tab, setTab, t, now, runs, runOk: ok,
+        useSessions, useSessionStatus, openSession,
+      });
+    }
+
     function AsidePanel(props) {
       const { useSession, sessionId, useSessions, useSessionStatus, openSession, t } = props;
-      const [tab, setTab] = useState('graph');
+      const [tab, setTab] = useState('overview');
+      const now = useNow(15000);
+      const { runs, ok } = useWorkflowRuns();
       const parentSessionId = useSession((state) => (state ? state.subagent && state.subagent.address.parentSessionId : undefined));
-      const lead = parentSessionId || sessionId || '';
-
-      return h('div', { className: 'awb-root' }, [
-        h('style', { dangerouslySetInnerHTML: { __html: CSS }, key: 'style' }),
-        h(TabBar, { tab, setTab, t, key: 'tabs' }),
-        h('div', { className: 'awb-body', key: 'body' }, [
-          tab === 'graph'
-            ? h(GraphView, { useSessions, useSessionStatus, openSession, t, key: 'view' })
-            : tab === 'timeline'
-              ? h(TimelineView, { openSession, t, key: 'view' })
-              : h(TeamView, { leadSessionId: lead, useSessions, useSessionStatus, openSession, t, key: 'view' }),
-        ]),
-      ]);
+      return h(PanelBody, {
+        tab, setTab, t, now, runs, runOk: ok,
+        useSessions, useSessionStatus, useSession, sessionId,
+        leadSessionId: parentSessionId || sessionId || '',
+        openSession,
+      });
     }
 
     function PanelIcon(props) {
