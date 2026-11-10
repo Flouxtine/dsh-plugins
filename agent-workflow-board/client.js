@@ -18,7 +18,7 @@ window.__ModuleLoader__.load({
 
     const NS = 'agent-workflow-board';
     const PANEL_ID = 'agent-workflow-board';
-    const WIDE_MIN = 780;
+    const WIDE_MIN = 420;
     const ACTIVE_MS = 2 * 60 * 60 * 1000;
     const RUNS_API = '/api/agent-workflow-board/runs';
     const NODE_W = 248;
@@ -61,6 +61,8 @@ window.__ModuleLoader__.load({
         'graph.activeOnly': 'Active only',
         'graph.hidden': '{count} idle hidden',
         'graph.root': 'Root session',
+        'graph.all': 'All sessions',
+        'graph.sessions': '{count} sessions',
         'graph.open': 'Open conversation',
         'graph.current': 'Current',
         'graph.agents': '{count} agents',
@@ -146,6 +148,8 @@ window.__ModuleLoader__.load({
         'graph.activeOnly': '只看活跃',
         'graph.hidden': '已隐藏 {count} 个沉睡节点',
         'graph.root': '根会话',
+        'graph.all': '全部会话',
+        'graph.sessions': '{count} 个会话',
         'graph.open': '打开会话',
         'graph.current': '当前',
         'graph.agents': '{count} 个子代理',
@@ -245,6 +249,8 @@ window.__ModuleLoader__.load({
       '.awb-node{position:absolute;display:flex;flex-direction:column;gap:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:9px 11px;box-sizing:border-box;overflow:hidden}',
       '.awb-node:hover{border-color:var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2)}',
       '.awb-nodeCurrent{border-color:var(--dsw-alias-brand-primary);box-shadow:0 0 0 1px color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent)}',
+      '.awb-nodeWorkspace{border-style:dashed;background:var(--dsw-alias-bg-layer-2)}',
+      '.awb-nodeIcon{width:18px;height:18px;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:12px}',
       '.awb-nodeHead{display:flex;align-items:center;gap:7px;min-width:0}',
       '.awb-nodeLabel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:600;line-height:17px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
       '.awb-nodeOpen{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;line-height:16px;padding:2px 5px;border-radius:6px;cursor:pointer;flex:none}',
@@ -763,8 +769,31 @@ window.__ModuleLoader__.load({
     /* graph view                                                          */
     /* ------------------------------------------------------------------ */
 
+    function workspaceLabel(cwd) {
+      if (!cwd) return '';
+      const parts = String(cwd).split(/[\\/]/).filter(Boolean);
+      return parts.length > 0 ? parts[parts.length - 1] : String(cwd);
+    }
+
     function NodeCard(props) {
       const { node, info, status, current, t, onOpen } = props;
+      if (node.kind === 'workspace') {
+        return h('div', {
+          className: 'awb-node awb-nodeWorkspace',
+          style: { left: node.x, top: node.y, width: NODE_W, height: NODE_H },
+        }, [
+          h('div', { className: 'awb-nodeHead', key: 'head' }, [
+            h('span', { className: 'awb-nodeIcon', key: 'icon' }, '📁'),
+            h('span', { className: 'awb-nodeLabel', title: node.cwd, key: 'label' }, workspaceLabel(node.cwd)),
+          ]),
+          h('div', { className: 'awb-nodeMeta', key: 'meta' }, [
+            h('span', { className: 'awb-tag', key: 'count' }, t('graph.sessions', { count: node.childCount })),
+          ]),
+          h('div', { className: 'awb-nodeMeta', key: 'path' }, [
+            h('span', { className: 'awb-tag awb-tagPath', title: node.cwd, key: 'path' }, node.cwd),
+          ]),
+        ]);
+      }
       return h('div', {
         className: `awb-node${current ? ' awb-nodeCurrent' : ''}`,
         style: { left: node.x, top: node.y, width: NODE_W, height: NODE_H },
@@ -799,22 +828,29 @@ window.__ModuleLoader__.load({
       ]);
     }
 
-    function ListTree(props) {
-      const { root, lineage, statusOfNode, infoOf, currentId, t, onOpen, depth } = props;
-      const info = infoOf(root.id);
+    function TreeNode(props) {
+      const { node, lineage, statusOfNode, infoOf, currentId, t, onOpen, depth } = props;
+      const isWorkspace = node.kind === 'workspace';
+      const info = isWorkspace ? { label: workspaceLabel(node.cwd) } : infoOf(node.id);
       return h('div', { className: 'awb-listNode' }, [
         h('div', { className: 'awb-listRow', style: { marginLeft: depth * 16 }, key: 'row' }, [
-          h(Dot, { status: statusOfNode(root.id), key: 'dot' }),
+          isWorkspace
+            ? h('span', { className: 'awb-nodeIcon', key: 'icon' }, '📁')
+            : h(Dot, { status: statusOfNode(node.id), key: 'dot' }),
           h('span', { className: 'awb-listLabel', title: info.label, key: 'label' }, info.label),
-          currentId === root.id ? h('span', { className: 'awb-tag', key: 'current' }, t('graph.current')) : null,
-          h('button', {
-            type: 'button', className: 'awb-nodeOpen', title: t('graph.open'),
-            'aria-label': t('graph.open'), onClick: () => onOpen(root.id), key: 'open',
-          }, '💬'),
+          !isWorkspace && currentId === node.id
+            ? h('span', { className: 'awb-tag', key: 'current' }, t('graph.current'))
+            : null,
+          !isWorkspace
+            ? h('button', {
+              type: 'button', className: 'awb-nodeOpen', title: t('graph.open'),
+              'aria-label': t('graph.open'), onClick: () => onOpen(node.id), key: 'open',
+            }, '💬')
+            : null,
         ]),
-        root.kids.length > 0
-          ? h('div', { className: 'awb-listKids', key: 'kids' }, root.kids.map((kid) => h(ListTree, {
-            key: kid.id, root: kid, lineage, statusOfNode, infoOf, currentId, t, onOpen, depth: depth + 1,
+        node.kids.length > 0
+          ? h('div', { className: 'awb-listKids', key: 'kids' }, node.kids.map((kid) => h(TreeNode, {
+            key: kid.id, node: kid, lineage, statusOfNode, infoOf, currentId, t, onOpen, depth: depth + 1,
           })))
           : null,
       ]);
@@ -851,35 +887,56 @@ window.__ModuleLoader__.load({
         return (lineage.children[id] || []).some(subtreeActive);
       };
       const visibleKids = (id) => (lineage.children[id] || []).filter((child) => showAll || isActive(child) || subtreeActive(child));
-      const buildTree = (id) => ({ id, kids: visibleKids(id).map(buildTree) });
-      const buildFullTree = (id) => ({ id, kids: (lineage.children[id] || []).map(buildFullTree) });
+      const buildTree = (id) => ({ id, kind: 'session', kids: visibleKids(id).map(buildTree) });
+      const buildFullTree = (id) => ({ id, kind: 'session', kids: (lineage.children[id] || []).map(buildFullTree) });
       const countNodes = (node) => 1 + node.kids.reduce((sum, kid) => sum + countNodes(kid), 0);
 
-      const effectiveRoot = rootId !== '' && lineage.byId[rootId] !== undefined
-        ? rootId
-        : (lineage.roots[0] || '');
-      const tree = effectiveRoot !== '' ? buildTree(effectiveRoot) : null;
-      const fullTree = effectiveRoot !== '' ? buildFullTree(effectiveRoot) : null;
-      const hiddenCount = tree !== null && fullTree !== null
-        ? Math.max(0, countNodes(fullTree) - countNodes(tree))
-        : 0;
+      // No explicit pick means the whole forest: every workspace, its root Sessions
+      // and each root's subtree, so a flat session list still reads as one graph.
+      const selectValue = rootId !== '' && lineage.byId[rootId] !== undefined ? rootId : '';
+      const newestOf = (ids) => ids.reduce((max, id) => Math.max(max, lineage.byId[id] ? lineage.byId[id].updatedAt : 0), 0);
+      const forest = [];
+      if (selectValue !== '') {
+        forest.push(buildTree(selectValue));
+      } else {
+        const groups = new Map();
+        for (const id of lineage.roots) {
+          const rec = lineage.byId[id];
+          const cwd = rec !== undefined && rec.cwd ? rec.cwd : '';
+          if (!groups.has(cwd)) groups.set(cwd, []);
+          groups.get(cwd).push(id);
+        }
+        const ordered = [...groups.entries()].sort((left, right) => newestOf(right[1]) - newestOf(left[1]));
+        for (const [cwd, roots] of ordered) {
+          if (cwd === '' || roots.length === 0) {
+            for (const id of roots) forest.push(buildTree(id));
+            continue;
+          }
+          forest.push({ id: `ws:${cwd}`, kind: 'workspace', cwd, kids: roots.map(buildTree) });
+        }
+      }
+      const hasTree = forest.length > 0;
+      let hiddenCount = 0;
+      for (const id of lineage.roots) {
+        hiddenCount += Math.max(0, countNodes(buildFullTree(id)) - countNodes(buildTree(id)));
+      }
 
       const nodes = [];
       const edges = [];
-      if (tree !== null) {
+      {
         let cursor = 0;
         const walk = (node, depth, parentId) => {
           const index = cursor;
           cursor += 1;
           nodes.push({
-            id: node.id, depth, index,
+            id: node.id, kind: node.kind, cwd: node.cwd, depth, index,
             x: depth * (NODE_W + HGAP), y: index * (NODE_H + VGAP),
             childCount: node.kids.length,
           });
           if (parentId !== null) edges.push([parentId, node.id]);
           for (const kid of node.kids) walk(kid, depth + 1, node.id);
         };
-        walk(tree, 0, null);
+        for (const root of forest) walk(root, 0, null);
       }
 
       const width = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.x + NODE_W));
@@ -905,9 +962,12 @@ window.__ModuleLoader__.load({
             `${stats.total} ${t('overview.stats.sessions').toLowerCase()} · ${countAgents(lineage)} ${t('overview.stats.agents').toLowerCase()} · ${stats.running} ${t('status.running').toLowerCase()}`),
           lineage.roots.length > 1
             ? h('select', {
-              className: 'awb-select', value: effectiveRoot, title: t('graph.root'),
+              className: 'awb-select', value: selectValue, title: t('graph.root'),
               onChange: (event) => setRootId(event.target.value), key: 'root',
-            }, lineage.roots.slice(0, 40).map((id) => h('option', { key: id, value: id }, displayTitle(lineage.byId[id]))))
+            }, [
+              h('option', { key: '__all', value: '' }, t('graph.all')),
+              ...lineage.roots.slice(0, 40).map((id) => h('option', { key: id, value: id }, displayTitle(lineage.byId[id]))),
+            ])
             : null,
           h('button', { type: 'button', className: 'awb-btn', onClick: () => setShowAll((value) => !value), key: 'toggle' },
             showAll ? t('graph.activeOnly') : t('graph.showAll')),
@@ -920,7 +980,7 @@ window.__ModuleLoader__.load({
           ]),
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
-          tree === null
+          !hasTree
             ? EmptyState({ t, message: t('graph.empty'), icon: '🕸', hint: emptyHint })
             : wide
               ? h('div', { className: 'awb-graphScroll', key: 'wide' }, [
@@ -933,15 +993,17 @@ window.__ModuleLoader__.load({
                     key: index, d, stroke: 'var(--dsw-alias-border-l2)', strokeWidth: 1.5,
                   }))),
                   nodes.map((node) => h(NodeCard, {
-                    key: node.id, node, info: infoOf(node.id),
-                    status: statusOfNode(node.id), current: currentId === node.id,
+                    key: node.id, node,
+                    info: node.kind === 'workspace' ? { label: '' } : infoOf(node.id),
+                    status: node.kind === 'workspace' ? 'idle' : statusOfNode(node.id),
+                    current: currentId === node.id,
                     t, onOpen: openSession,
                   })),
                 ]),
               ])
-              : h('div', { key: 'narrow' }, h(ListTree, {
-                root: tree, lineage, statusOfNode, infoOf, currentId, t, onOpen: openSession, depth: 0,
-              })),
+              : h('div', { key: 'narrow' }, forest.map((root) => h(TreeNode, {
+                key: root.id, node: root, lineage, statusOfNode, infoOf, currentId, t, onOpen: openSession, depth: 0,
+              }))),
         ]),
       ]);
     }
