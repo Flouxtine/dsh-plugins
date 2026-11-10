@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="ar-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#ar-bg)"/>
+  <rect x="11" y="14" width="38" height="34" rx="5" fill="#ffffff" fill-opacity="0.14"/>
+  <rect x="11" y="14" width="38" height="34" rx="5" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="2"/>
+  <circle cx="18" cy="24" r="2.6" fill="#6EF2C0"/>
+  <rect x="24" y="21.8" width="20" height="4.4" rx="2.2" fill="#ffffff" fill-opacity="0.92"/>
+  <circle cx="18" cy="33" r="2.6" fill="#FFD166"/>
+  <rect x="24" y="30.8" width="14" height="4.4" rx="2.2" fill="#ffffff" fill-opacity="0.68"/>
+  <circle cx="18" cy="42" r="2.6" fill="#ffffff" fill-opacity="0.5"/>
+  <rect x="24" y="39.8" width="17" height="4.4" rx="2.2" fill="#ffffff" fill-opacity="0.42"/>
+  <circle cx="49" cy="18" r="9.5" fill="#F59E0B" stroke="#ffffff" stroke-width="2.6"/>
+  <path d="M45.2 18.6c0-2.7 1.7-4.3 3.8-4.3s3.8 1.6 3.8 4.3v2.5h-7.6z" fill="#ffffff"/>
+  <rect x="43.8" y="21.1" width="10.4" height="1.9" rx="0.95" fill="#ffffff"/>
+  <circle cx="49" cy="24.9" r="1.35" fill="#ffffff"/>
+</svg>

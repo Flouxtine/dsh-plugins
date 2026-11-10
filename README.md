@@ -15,3 +15,6 @@ github:zhangzh_anch/dsh-plugins#main&path:/quick-notes
   P1–P4 priorities, recurring tasks, subtasks and smart views (`@local/quick-notes`).
 - `agent-workflow-board` — a live multi-agent workflow panel: agent lineage graph,
   workflow run timeline and Agent Team task board (`@local/agent-workflow-board`).
+- `agent-runtimes` — one console for the mainstream agent runtimes on this machine
+  (WorkBuddy, CodeBuddy CN, Codex/Codex++, Cursor and DeepSeek Harness) with
+  approval reminders (`@local/agent-runtimes`).

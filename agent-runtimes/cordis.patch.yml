@@ -1,0 +1,3 @@
+- insert:
+    - id: agent-runtimes
+      name: '@local/agent-runtimes'
