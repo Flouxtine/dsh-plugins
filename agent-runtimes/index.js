@@ -1214,8 +1214,28 @@ function displayReasonOf(req) {
 /* plugin                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Required for the HTTP routes, the live Session store and the agent turn boundaries. */
-export const inject = ['webServer', 'sessions', 'agents'];
+/** Required for the HTTP routes, the live Session store, the agent turn boundaries and the credential store. */
+export const inject = ['webServer', 'sessions', 'agents', 'credentials'];
+
+/* ------------------------------------------------------------------ */
+/* credential bindings (API key ↔ runtime ↔ purpose)                   */
+/* ------------------------------------------------------------------ */
+
+const CREDENTIAL_PREFIX = 'agent-runtimes/';
+
+function credentialKeyOf(id) {
+  return `${CREDENTIAL_PREFIX}${id}`;
+}
+
+function credentialRefOf(name) {
+  const slug = String(name).toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  return `AGENT_RUNTIMES_${slug === '' ? 'KEY' : slug}`;
+}
+
+function credentialPayloadOf(record) {
+  if (record === null || typeof record !== 'object' || record.kind !== 'grant') return null;
+  return record.payload !== null && typeof record.payload === 'object' ? record.payload : null;
+}
 
 export function apply(ctx) {
   const settings = readSettings();
@@ -1502,6 +1522,146 @@ export function apply(ctx) {
             return;
           }
           reply(400, { ok: false, error: 'unknown-action' });
+        });
+      },
+    },
+    {
+      kind: 'exact',
+      path: `${API}/credentials`,
+      handler: (req, res) => {
+        const reply = (status, payload) => {
+          res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+          res.end(JSON.stringify(payload));
+        };
+        const credentials = typeof ctx.get === 'function' ? ctx.get('credentials') : undefined;
+        if (credentials === undefined) {
+          reply(200, { ok: false, error: 'credentials-unavailable', items: [] });
+          return;
+        }
+        if (req.method === 'GET') {
+          void (async () => {
+            try {
+              const entries = await credentials.listRecords();
+              const items = [];
+              for (const entry of entries) {
+                const key = String(entry.key);
+                if (!key.startsWith(CREDENTIAL_PREFIX)) continue;
+                let record;
+                try {
+                  record = await credentials.readRecord(entry.key);
+                } catch {
+                  // A key written by an older build may no longer validate.
+                  continue;
+                }
+                const payload = credentialPayloadOf(record);
+                if (payload === null) continue;
+                const ref = typeof payload.ref === 'string' ? payload.ref : '';
+                let configured = false;
+                if (ref !== '') {
+                  try {
+                    const info = await credentials.describe(ref);
+                    configured = info !== null && info.configured === true;
+                  } catch {
+                    configured = false;
+                  }
+                }
+                items.push({
+                  id: typeof payload.id === 'string' ? payload.id : key.slice(CREDENTIAL_PREFIX.length),
+                  name: typeof payload.name === 'string' ? payload.name : '',
+                  agent: typeof payload.agent === 'string' ? payload.agent : '',
+                  purpose: typeof payload.purpose === 'string' ? payload.purpose : '',
+                  createdAt: typeof payload.createdAt === 'number' ? payload.createdAt : 0,
+                  ref,
+                  configured,
+                });
+              }
+              items.sort((a, b) => b.createdAt - a.createdAt);
+              reply(200, { ok: true, items });
+            } catch (error) {
+              reply(200, { ok: false, error: error && error.message ? error.message : String(error), items: [] });
+            }
+          })();
+          return;
+        }
+        let body = '';
+        req.on('data', (chunk) => {
+          body += String(chunk);
+          if (body.length > 16 * 1024) req.destroy();
+        });
+        req.on('end', () => {
+          let parsed;
+          try {
+            parsed = JSON.parse(body || '{}');
+          } catch {
+            reply(400, { ok: false, error: 'invalid-json' });
+            return;
+          }
+          if (req.method === 'POST') {
+            const name = typeof parsed.name === 'string' ? parsed.name.trim() : '';
+            const secret = typeof parsed.secret === 'string' ? parsed.secret.trim() : '';
+            if (name === '' || secret === '') {
+              reply(200, { ok: false, error: 'missing-fields' });
+              return;
+            }
+            const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            const ref = credentialRefOf(name);
+            void (async () => {
+              try {
+                await credentials.set(ref, secret);
+                await credentials.modifyRecord(credentialKeyOf(id), async () => ({
+                  kind: 'grant',
+                  payload: {
+                    id,
+                    name,
+                    agent: typeof parsed.agent === 'string' ? parsed.agent : '',
+                    purpose: typeof parsed.purpose === 'string' ? parsed.purpose.trim() : '',
+                    ref,
+                    createdAt: Date.now(),
+                  },
+                }));
+                reply(200, { ok: true, id, ref });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
+            return;
+          }
+          if (req.method === 'DELETE') {
+            const rawKey = typeof parsed.key === 'string' ? parsed.key : '';
+            const id = typeof parsed.id === 'string' ? parsed.id : '';
+            if (rawKey === '' && id === '') {
+              reply(400, { ok: false, error: 'missing-id' });
+              return;
+            }
+            void (async () => {
+              try {
+                const key = rawKey !== '' ? rawKey : credentialKeyOf(id);
+                if (!String(key).startsWith(CREDENTIAL_PREFIX)) {
+                  reply(200, { ok: false, error: 'unknown-key' });
+                  return;
+                }
+                let payload = null;
+                try {
+                  payload = credentialPayloadOf(await credentials.readRecord(key));
+                } catch {
+                  payload = null;
+                }
+                await credentials.deleteRecord(key);
+                if (payload !== null && typeof payload.ref === 'string' && payload.ref !== '') {
+                  try {
+                    await credentials.unset(payload.ref);
+                  } catch {
+                    // Ambient fallbacks may still supply the value.
+                  }
+                }
+                reply(200, { ok: true });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
+            return;
+          }
+          reply(405, { ok: false, error: 'method-not-allowed' });
         });
       },
     },

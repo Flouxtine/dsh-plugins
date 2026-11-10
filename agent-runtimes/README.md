@@ -27,6 +27,13 @@ One console for the mainstream agent runtimes on your machine, built as a
 - **Recent activity** — a cross-runtime feed of what just changed: runtime
   status transitions, new sessions, session status changes and newly raised
   approvals.
+- **Credential management** — a "凭据管理" page in Settings stores a third-party
+  agent app's API key in the DSH credential store, binds it to a runtime and
+  records its purpose: name, agent, purpose and key go in, the list shows name,
+  bound runtime, purpose and whether the secret is still configured. The secret
+  is written as a `ref` in `~/.dsh/.credentials.yaml` and never rendered back —
+  the panel only shows its name and configured state. Deleting a binding removes
+  both the record and the ref.
 - **Actions** — open or activate any installed runtime, open a DeepSeek Harness
   session, and request a stop for a running Harness agent.
 

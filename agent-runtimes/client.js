@@ -65,6 +65,26 @@ window.__ModuleLoader__.load({
         'status.error': 'Error',
         'status.absent': 'Not installed',
         'status.stopped': 'Stopped',
+        'credentials.nav': 'Agent credentials',
+        'credentials.title': 'Agent credentials',
+        'credentials.hint': 'Store a third-party agent app API key in the DSH credential store, bind it to a runtime and record its purpose. The secret goes to ~/.dsh/.credentials.yaml; the panel only shows its name and state.',
+        'credentials.add': 'Add API key',
+        'credentials.name': 'Name',
+        'credentials.namePlaceholder': 'e.g. WorkBuddy sync token',
+        'credentials.agent': 'Agent',
+        'credentials.purpose': 'Purpose',
+        'credentials.purposePlaceholder': 'What this key is used for',
+        'credentials.secret': 'API key',
+        'credentials.secretPlaceholder': 'Paste the key (stored in the DSH credential store)',
+        'credentials.cancel': 'Cancel',
+        'credentials.confirm': 'Save',
+        'credentials.empty': 'No API keys stored yet.',
+        'credentials.loading': 'Loading…',
+        'credentials.configured': 'configured',
+        'credentials.missing': 'missing',
+        'credentials.remove': 'Delete',
+        'credentials.required': 'Name and API key are both required.',
+        'credentials.failed': 'Could not save the credential.',
         'session.running': 'Running',
         'session.idle': 'Idle',
         'session.working': 'Working',
@@ -136,6 +156,26 @@ window.__ModuleLoader__.load({
         'status.error': '异常',
         'status.absent': '未安装',
         'status.stopped': '已停止',
+        'credentials.nav': '凭据管理',
+        'credentials.title': 'Agent 凭据',
+        'credentials.hint': '把第三方 Agent 应用的 API Key 存进 DSH 凭证库，绑定到对应运行时并记录用途。密钥写入 ~/.dsh/.credentials.yaml，面板只显示名称和状态。',
+        'credentials.add': '新增 API Key',
+        'credentials.name': '名称',
+        'credentials.namePlaceholder': '例如 WorkBuddy 同步令牌',
+        'credentials.agent': 'Agent',
+        'credentials.purpose': '用途',
+        'credentials.purposePlaceholder': '描述这个 key 用来做什么',
+        'credentials.secret': 'API Key',
+        'credentials.secretPlaceholder': '粘贴密钥（存入 DSH 凭证库）',
+        'credentials.cancel': '取消',
+        'credentials.confirm': '确认',
+        'credentials.empty': '还没有保存任何 API Key。',
+        'credentials.loading': '加载中…',
+        'credentials.configured': '已配置',
+        'credentials.missing': '缺失',
+        'credentials.remove': '删除',
+        'credentials.required': '名称和 API Key 都是必填。',
+        'credentials.failed': '保存凭证失败。',
         'session.running': '运行中',
         'session.idle': '空闲',
         'session.working': '工作中',
@@ -735,6 +775,159 @@ window.__ModuleLoader__.load({
 
     const noopUseSessions = () => null;
 
+    const RUNTIME_OPTIONS = [
+      { id: 'workbuddy', name: 'WorkBuddy' },
+      { id: 'codebuddy', name: 'CodeBuddy CN' },
+      { id: 'codex', name: 'Codex++' },
+      { id: 'cursor', name: 'Cursor' },
+      { id: 'dsh', name: 'DeepSeek Harness' },
+    ];
+
+    function runtimeNameOf(id) {
+      const found = RUNTIME_OPTIONS.find((option) => option.id === id);
+      return found !== undefined ? found.name : id;
+    }
+
+    const CREDENTIALS_CSS = `
+.ar-cr { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; min-width: 0; }
+.ar-crHead { display: flex; align-items: flex-start; gap: 12px; }
+.ar-crHead > div { flex: 1 1 auto; min-width: 0; }
+.ar-crTitle { font-size: 15px; font-weight: 650; }
+.ar-crHint { color: var(--dsw-alias-label-secondary); font-size: 12px; margin-top: 2px; line-height: 1.5; }
+.ar-crNotice { border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.ar-crForm { border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.ar-crField { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.ar-crField span { color: var(--dsw-alias-label-secondary); }
+.ar-crField input, .ar-crField select { width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; padding: 6px 8px; outline: none; }
+.ar-crField input:focus, .ar-crField select:focus { border-color: var(--dsw-alias-brand-primary); }
+.ar-crActions { display: flex; justify-content: flex-end; gap: 8px; }
+.ar-crEmpty { color: var(--dsw-alias-label-secondary); font-size: 12px; padding: 14px 0; }
+.ar-crList { display: flex; flex-direction: column; gap: 8px; }
+.ar-crRow { display: flex; align-items: center; gap: 10px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); padding: 10px 12px; min-width: 0; }
+.ar-crRowMain { flex: 1 1 auto; min-width: 0; }
+.ar-crName { font-weight: 600; font-size: 13px; }
+.ar-crMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-crRowMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; flex: none; }
+`;
+
+    function CredentialsSection() {
+      const [state, setState] = useState({ loading: true, items: [], error: '', notice: '' });
+      const [draft, setDraft] = useState(null);
+
+      const reload = async () => {
+        try {
+          const response = await fetch(`${API}/credentials`, { cache: 'no-store' });
+          const data = await response.json();
+          setState({
+            loading: false,
+            items: Array.isArray(data.items) ? data.items : [],
+            error: data.ok === true ? '' : (typeof data.error === 'string' ? data.error : ''),
+            notice: '',
+          });
+        } catch (error) {
+          setState({ loading: false, items: [], error: String(error), notice: '' });
+        }
+      };
+
+      useEffect(() => { void reload(); }, []);
+
+      const submit = async () => {
+        if (draft === null) return;
+        if (draft.name.trim() === '' || draft.secret.trim() === '') {
+          setState({ ...state, notice: t('credentials.required') });
+          return;
+        }
+        try {
+          const response = await fetch(`${API}/credentials`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: draft.name, agent: draft.agent, purpose: draft.purpose, secret: draft.secret }),
+          });
+          const result = await response.json();
+          if (result.ok !== true) {
+            setState({ ...state, notice: t('credentials.failed') });
+            return;
+          }
+          setDraft(null);
+          setState({ ...state, notice: '' });
+          await reload();
+        } catch (error) {
+          setState({ ...state, notice: String(error) });
+        }
+      };
+
+      const remove = async (id) => {
+        try {
+          await fetch(`${API}/credentials`, {
+            method: 'DELETE',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+        } catch {
+          // The list refresh reports whatever remains.
+        }
+        await reload();
+      };
+
+      const field = (key, labelKey, placeholderKey, value, onChange, type) => h('label', { className: 'ar-crField', key }, [
+        h('span', { key: 'label' }, t(labelKey)),
+        h('input', {
+          key: 'input',
+          type: type || 'text',
+          value,
+          placeholder: t(placeholderKey),
+          onChange: (event) => onChange(event.target.value),
+        }),
+      ]);
+
+      return h('div', { className: 'ar-cr' }, [
+        h('style', { dangerouslySetInnerHTML: { __html: CREDENTIALS_CSS }, key: 'style' }),
+        h('div', { className: 'ar-crHead', key: 'head' }, [
+          h('div', { key: 'text' }, [
+            h('div', { className: 'ar-crTitle', key: 'title' }, t('credentials.title')),
+            h('div', { className: 'ar-crHint', key: 'hint' }, t('credentials.hint')),
+          ]),
+          h('button', {
+            type: 'button', className: 'ar-btn ar-btn--primary', key: 'add',
+            onClick: () => setDraft({ name: '', agent: 'workbuddy', purpose: '', secret: '' }),
+          }, t('credentials.add')),
+        ]),
+        state.notice !== '' ? h('div', { className: 'ar-crNotice', key: 'notice' }, state.notice) : null,
+        state.error !== '' ? h('div', { className: 'ar-crNotice', key: 'error' }, state.error) : null,
+        draft !== null ? h('div', { className: 'ar-crForm', key: 'form' }, [
+          field('name', 'credentials.name', 'credentials.namePlaceholder', draft.name, (value) => setDraft({ ...draft, name: value })),
+          h('label', { className: 'ar-crField', key: 'agent' }, [
+            h('span', { key: 'label' }, t('credentials.agent')),
+            h('select', {
+              key: 'select',
+              value: draft.agent,
+              onChange: (event) => setDraft({ ...draft, agent: event.target.value }),
+            }, RUNTIME_OPTIONS.map((option) => h('option', { value: option.id, key: option.id }, option.name))),
+          ]),
+          field('purpose', 'credentials.purpose', 'credentials.purposePlaceholder', draft.purpose, (value) => setDraft({ ...draft, purpose: value })),
+          field('secret', 'credentials.secret', 'credentials.secretPlaceholder', draft.secret, (value) => setDraft({ ...draft, secret: value }), 'password'),
+          h('div', { className: 'ar-crActions', key: 'actions' }, [
+            h('button', { type: 'button', className: 'ar-btn', key: 'cancel', onClick: () => setDraft(null) }, t('credentials.cancel')),
+            h('button', { type: 'button', className: 'ar-btn ar-btn--primary', key: 'confirm', onClick: () => { void submit(); } }, t('credentials.confirm')),
+          ]),
+        ]) : null,
+        state.loading
+          ? h('div', { className: 'ar-crEmpty', key: 'loading' }, t('credentials.loading'))
+          : state.items.length === 0
+            ? h('div', { className: 'ar-crEmpty', key: 'empty' }, t('credentials.empty'))
+            : h('div', { className: 'ar-crList', key: 'list' }, state.items.map((item) => h('div', { className: 'ar-crRow', key: item.id }, [
+              h('div', { className: 'ar-crRowMain', key: 'main' }, [
+                h('div', { className: 'ar-crName', key: 'name' }, item.name),
+                h('div', { className: 'ar-crMeta', key: 'meta' },
+                  `${runtimeNameOf(item.agent)} · ${item.ref} · ${item.configured ? t('credentials.configured') : t('credentials.missing')}`),
+                item.purpose !== '' ? h('div', { className: 'ar-crMeta', key: 'purpose' }, item.purpose) : null,
+              ]),
+              h('div', { className: 'ar-crRowMeta', key: 'time' }, formatRelative(item.createdAt, Date.now())),
+              h('button', { type: 'button', className: 'ar-linkBtn', key: 'delete', onClick: () => { void remove(item.id); } }, t('credentials.remove')),
+            ]))),
+      ]);
+    }
+
     function ConsolePanel(props) {
       const { ctx, useSessions } = props;
       const storeState = useStore();
@@ -1008,6 +1201,11 @@ window.__ModuleLoader__.load({
           name: 'shell.overlay', id: 'agent-runtimes.reminder', order: 90,
           label: () => t('panel'),
         }, ReminderToast));
+
+        ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section', id: 'agent-runtimes-credentials', order: 25, locale: NS,
+          label: () => t('credentials.nav'),
+        }, CredentialsSection));
       },
     };
   },
