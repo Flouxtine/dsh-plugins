@@ -78,6 +78,14 @@ window.__ModuleLoader__.load({
         'credentials.secretPlaceholder': 'Paste the key (stored in the DSH credential store)',
         'credentials.cancel': 'Cancel',
         'credentials.confirm': 'Save',
+        'credentials.invoke': 'Call',
+        'credentials.url': 'URL',
+        'credentials.method': 'Method',
+        'credentials.body': 'Body',
+        'credentials.send': 'Send',
+        'credentials.sending': 'Sending…',
+        'credentials.urlRequired': 'Enter a URL first.',
+        'credentials.callFailed': 'Call failed',
         'credentials.empty': 'No API keys stored yet.',
         'credentials.loading': 'Loading…',
         'credentials.configured': 'configured',
@@ -177,6 +185,14 @@ window.__ModuleLoader__.load({
         'credentials.secretPlaceholder': '粘贴密钥（存入 DSH 凭证库）',
         'credentials.cancel': '取消',
         'credentials.confirm': '确认',
+        'credentials.invoke': '调用',
+        'credentials.url': 'URL',
+        'credentials.method': '方法',
+        'credentials.body': '请求体',
+        'credentials.send': '发送',
+        'credentials.sending': '发送中…',
+        'credentials.urlRequired': '请先填写 URL。',
+        'credentials.callFailed': '调用失败',
         'credentials.empty': '还没有保存任何 API Key。',
         'credentials.loading': '加载中…',
         'credentials.configured': '已配置',
@@ -826,6 +842,10 @@ window.__ModuleLoader__.load({
 .ar-crRowMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; flex: none; }
 .ar-crInlineInput { margin-top: 6px; width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; padding: 5px 8px; outline: none; }
 .ar-crInlineInput:focus { border-color: var(--dsw-alias-brand-primary); }
+.ar-crItem { display: flex; flex-direction: column; gap: 8px; }
+.ar-crField textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12.5px; padding: 6px 8px; outline: none; resize: vertical; }
+.ar-crField textarea:focus { border-color: var(--dsw-alias-brand-primary); }
+.ar-crResult { margin: 0; max-height: 220px; overflow: auto; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-family: var(--dsw-alias-font-mono); font-size: 11.5px; line-height: 1.5; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
 `;
 
     function AgentNamesSection() {
@@ -909,6 +929,7 @@ window.__ModuleLoader__.load({
     function CredentialsSection() {
       const [state, setState] = useState({ loading: true, items: [], error: '', notice: '' });
       const [draft, setDraft] = useState(null);
+      const [invoke, setInvoke] = useState(null);
 
       const reload = async () => {
         try {
@@ -965,6 +986,30 @@ window.__ModuleLoader__.load({
         await reload();
       };
 
+      const sendInvoke = async () => {
+        if (invoke === null) return;
+        if (invoke.url.trim() === '') {
+          setInvoke({ ...invoke, result: t('credentials.urlRequired') });
+          return;
+        }
+        setInvoke({ ...invoke, result: t('credentials.sending') });
+        try {
+          const response = await fetch(`${API}/action`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'invoke', id: invoke.id, url: invoke.url, method: invoke.method, body: invoke.body }),
+          });
+          const result = await response.json();
+          if (result.ok !== true) {
+            setInvoke({ ...invoke, result: `${t('credentials.callFailed')}\n${result.error || ''}` });
+            return;
+          }
+          setInvoke({ ...invoke, result: `HTTP ${result.status}\n\n${result.body}` });
+        } catch (error) {
+          setInvoke({ ...invoke, result: String(error) });
+        }
+      };
+
       const field = (key, labelKey, placeholderKey, value, onChange, type) => h('label', { className: 'ar-crField', key }, [
         h('span', { key: 'label' }, t(labelKey)),
         h('input', {
@@ -1015,15 +1060,49 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'ar-crEmpty', key: 'loading' }, t('credentials.loading'))
           : state.items.length === 0
             ? h('div', { className: 'ar-crEmpty', key: 'empty' }, t('credentials.empty'))
-            : h('div', { className: 'ar-crList', key: 'list' }, state.items.map((item) => h('div', { className: 'ar-crRow', key: item.id }, [
-              h('div', { className: 'ar-crRowMain', key: 'main' }, [
-                h('div', { className: 'ar-crName', key: 'name' }, item.name),
-                h('div', { className: 'ar-crMeta', key: 'meta' },
-                  `${runtimeNameOf(item.agent)} · ${item.ref} · ${item.configured ? t('credentials.configured') : t('credentials.missing')}`),
-                item.purpose !== '' ? h('div', { className: 'ar-crMeta', key: 'purpose' }, item.purpose) : null,
+            : h('div', { className: 'ar-crList', key: 'list' }, state.items.map((item) => h('div', { className: 'ar-crItem', key: item.id }, [
+              h('div', { className: 'ar-crRow', key: 'row' }, [
+                h('div', { className: 'ar-crRowMain', key: 'main' }, [
+                  h('div', { className: 'ar-crName', key: 'name' }, item.name),
+                  h('div', { className: 'ar-crMeta', key: 'meta' },
+                    `${runtimeNameOf(item.agent)} · ${item.ref} · ${item.configured ? t('credentials.configured') : t('credentials.missing')}`),
+                  item.purpose !== '' ? h('div', { className: 'ar-crMeta', key: 'purpose' }, item.purpose) : null,
+                ]),
+                h('div', { className: 'ar-crRowMeta', key: 'time' }, formatRelative(item.createdAt, Date.now())),
+                h('button', {
+                  type: 'button', className: 'ar-linkBtn', key: 'invoke',
+                  onClick: () => setInvoke({ id: item.id, url: '', method: 'POST', body: '', result: null }),
+                }, t('credentials.invoke')),
+                h('button', { type: 'button', className: 'ar-linkBtn', key: 'delete', onClick: () => { void remove(item.id); } }, t('credentials.remove')),
               ]),
-              h('div', { className: 'ar-crRowMeta', key: 'time' }, formatRelative(item.createdAt, Date.now())),
-              h('button', { type: 'button', className: 'ar-linkBtn', key: 'delete', onClick: () => { void remove(item.id); } }, t('credentials.remove')),
+              invoke !== null && invoke.id === item.id ? h('div', { className: 'ar-crForm', key: 'invokeForm' }, [
+                h('label', { className: 'ar-crField', key: 'url' }, [
+                  h('span', { key: 'label' }, t('credentials.url')),
+                  h('input', {
+                    key: 'input', value: invoke.url, placeholder: 'https://…',
+                    onChange: (event) => setInvoke({ ...invoke, url: event.target.value }),
+                  }),
+                ]),
+                h('label', { className: 'ar-crField', key: 'method' }, [
+                  h('span', { key: 'label' }, t('credentials.method')),
+                  h('select', {
+                    key: 'select', value: invoke.method,
+                    onChange: (event) => setInvoke({ ...invoke, method: event.target.value }),
+                  }, ['GET', 'POST', 'PUT', 'DELETE'].map((verb) => h('option', { value: verb, key: verb }, verb))),
+                ]),
+                h('label', { className: 'ar-crField', key: 'body' }, [
+                  h('span', { key: 'label' }, t('credentials.body')),
+                  h('textarea', {
+                    key: 'textarea', rows: 4, value: invoke.body, placeholder: '{"…": "…"}',
+                    onChange: (event) => setInvoke({ ...invoke, body: event.target.value }),
+                  }),
+                ]),
+                h('div', { className: 'ar-crActions', key: 'actions' }, [
+                  h('button', { type: 'button', className: 'ar-btn', key: 'close', onClick: () => setInvoke(null) }, t('credentials.cancel')),
+                  h('button', { type: 'button', className: 'ar-btn ar-btn--primary', key: 'send', onClick: () => { void sendInvoke(); } }, t('credentials.send')),
+                ]),
+                invoke.result !== null ? h('pre', { className: 'ar-crResult', key: 'result' }, invoke.result) : null,
+              ]) : null,
             ]))),
       ]);
     }

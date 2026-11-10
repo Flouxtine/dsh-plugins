@@ -39,6 +39,11 @@ One console for the mainstream agent runtimes on your machine, built as a
   is written as a `ref` in `~/.dsh/.credentials.yaml` and never rendered back —
   the panel only shows its name and configured state. Deleting a binding removes
   both the record and the ref.
+- **Call a stored key** — every credential row has a "调用" action: enter a URL,
+  pick the method, add a JSON body, and the Host sends the request with
+  `Authorization: Bearer <the stored key>` and shows the status and response.
+  HTTPS only (plain HTTP is limited to localhost), so a key is never sent
+  unencrypted to a remote host.
 - **Actions** — open or activate any installed runtime, open a DeepSeek Harness
   session, and request a stop for a running Harness agent.
 

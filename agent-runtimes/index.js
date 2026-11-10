@@ -1435,6 +1435,52 @@ export function apply(ctx) {
           const runtimeId = typeof parsed.runtimeId === 'string' ? parsed.runtimeId : '';
           const sessionId = typeof parsed.sessionId === 'string' ? parsed.sessionId : '';
 
+          if (action === 'invoke') {
+            const id = typeof parsed.id === 'string' ? parsed.id : '';
+            const url = typeof parsed.url === 'string' ? parsed.url.trim() : '';
+            const method = typeof parsed.method === 'string' ? parsed.method.toUpperCase() : 'POST';
+            if (id === '' || url === '') {
+              reply(200, { ok: false, error: 'missing-fields' });
+              return;
+            }
+            if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(url)) {
+              reply(200, { ok: false, error: 'https-required' });
+              return;
+            }
+            void (async () => {
+              try {
+                const credentials = typeof ctx.get === 'function' ? ctx.get('credentials') : undefined;
+                if (credentials === undefined) {
+                  reply(200, { ok: false, error: 'credentials-unavailable' });
+                  return;
+                }
+                const payload = credentialPayloadOf(await credentials.readRecord(credentialKeyOf(id)));
+                const ref = payload !== null && typeof payload.ref === 'string' ? payload.ref : '';
+                if (ref === '') {
+                  reply(200, { ok: false, error: 'unknown-credential' });
+                  return;
+                }
+                const resolved = await credentials.resolve(ref);
+                if (resolved === undefined || resolved.value === '') {
+                  reply(200, { ok: false, error: 'credential-missing' });
+                  return;
+                }
+                const init = {
+                  method,
+                  headers: { authorization: `Bearer ${resolved.value}`, 'content-type': 'application/json' },
+                };
+                if (method !== 'GET' && method !== 'HEAD' && typeof parsed.body === 'string' && parsed.body.trim() !== '') {
+                  init.body = parsed.body;
+                }
+                const response = await fetch(url, init);
+                const text = await response.text();
+                reply(200, { ok: true, status: response.status, body: text.slice(0, 8000) });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
+            return;
+          }
           if (action === 'setName') {
             setName(parsed.runtimeId, parsed.name);
             reply(200, { ok: true, names: { ...names } });

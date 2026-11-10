@@ -89,5 +89,13 @@
   "credentials.missing": "缺失",
   "credentials.remove": "删除",
   "credentials.required": "名称和 API Key 都是必填。",
-  "credentials.failed": "保存凭证失败。"
+  "credentials.failed": "保存凭证失败。",
+  "credentials.invoke": "调用",
+  "credentials.url": "URL",
+  "credentials.method": "方法",
+  "credentials.body": "请求体",
+  "credentials.send": "发送",
+  "credentials.sending": "发送中…",
+  "credentials.urlRequired": "请先填写 URL。",
+  "credentials.callFailed": "调用失败"
 }

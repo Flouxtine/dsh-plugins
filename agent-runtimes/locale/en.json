@@ -89,5 +89,13 @@
   "credentials.missing": "missing",
   "credentials.remove": "Delete",
   "credentials.required": "Name and API key are both required.",
-  "credentials.failed": "Could not save the credential."
+  "credentials.failed": "Could not save the credential.",
+  "credentials.invoke": "Call",
+  "credentials.url": "URL",
+  "credentials.method": "Method",
+  "credentials.body": "Body",
+  "credentials.send": "Send",
+  "credentials.sending": "Sending…",
+  "credentials.urlRequired": "Enter a URL first.",
+  "credentials.callFailed": "Call failed"
 }
