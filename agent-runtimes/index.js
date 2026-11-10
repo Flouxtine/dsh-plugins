@@ -15,11 +15,13 @@ import {
   closeSync,
   existsSync,
   fstatSync,
+  mkdirSync,
   openSync,
   readFileSync,
   readSync,
   readdirSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -38,6 +40,9 @@ const TAIL_BYTES = 512 * 1024;
 const PGREP = '/usr/bin/pgrep';
 const SQLITE = '/usr/bin/sqlite3';
 const OPEN = '/usr/bin/open';
+const DATA_DIR = process.env.DSH_HOME || join(HOME, '.dsh');
+const SETTINGS_PATH = join(DATA_DIR, 'agent-runtimes-settings.json');
+const DECISION_TIMEOUT_MS = 5 * 60 * 1000;
 
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
@@ -944,6 +949,40 @@ function diffActivity(prev, next) {
 }
 
 /* ------------------------------------------------------------------ */
+/* console approval interception (opt-in)                              */
+/* ------------------------------------------------------------------ */
+
+function readSettings() {
+  try {
+    const parsed = JSON.parse(readFileSync(SETTINGS_PATH, 'utf8'));
+    return parsed !== null && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSettings(settings) {
+  try {
+    mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(SETTINGS_PATH, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  } catch {
+    // The preference is a nicety; losing it must not break the console.
+  }
+}
+
+/** Pick the most human-readable reason an approval request carries. */
+function displayReasonOf(req) {
+  const display = req.displayReason;
+  if (typeof display === 'string' && display !== '') return display;
+  if (display !== null && typeof display === 'object') {
+    const first = display.en;
+    if (typeof first === 'string' && first !== '') return first;
+  }
+  if (typeof req.reason === 'string' && req.reason !== '') return req.reason;
+  return req.toolName;
+}
+
+/* ------------------------------------------------------------------ */
 /* plugin                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -951,15 +990,108 @@ function diffActivity(prev, next) {
 export const inject = ['webServer', 'sessions', 'agents'];
 
 export function apply(ctx) {
-  let snapshot = { now: Date.now(), runtimes: [], approvals: [], activity: [] };
+  const settings = readSettings();
+  let intercept = settings.intercept === true;
+  const decisions = new Map();
+
+  let snapshot = { now: Date.now(), runtimes: [], approvals: [], activity: [], intercept };
   const activity = [];
   let collecting = false;
+
+  const settle = (id, outcome) => {
+    const record = decisions.get(id);
+    if (record === undefined) return;
+    decisions.delete(id);
+    if (record.timer !== undefined) clearTimeout(record.timer);
+    record.status = 'done';
+    record.resolve(outcome);
+    void refresh();
+  };
+
+  const setIntercept = (enabled) => {
+    intercept = enabled === true;
+    writeSettings({ ...readSettings(), intercept });
+    if (!intercept) {
+      // Hand every pending decision back to the normal answerer chain.
+      for (const [id, record] of Array.from(decisions.entries())) {
+        Promise.resolve()
+          .then(() => record.next())
+          .then((outcome) => settle(id, outcome), () => settle(id, 'unavailable'));
+      }
+    }
+    void refresh();
+  };
+
+  const requestConsoleDecision = (req, next) => new Promise((resolve) => {
+    const id = `${req.agent.id}:${req.callId !== undefined ? String(req.callId) : `call-${Date.now()}`}`;
+    const record = {
+      id,
+      sessionId: req.agent.id,
+      tool: req.toolName,
+      reason: displayReasonOf(req),
+      since: Date.now(),
+      status: 'pending',
+      resolve,
+      next,
+      timer: undefined,
+    };
+    // A closed page must fail closed rather than hang the agent forever.
+    record.timer = setTimeout(() => settle(id, 'unavailable'), DECISION_TIMEOUT_MS);
+    if (req.signal !== undefined) {
+      req.signal.addEventListener('abort', () => settle(id, 'cancelled'), { once: true });
+    }
+    decisions.set(id, record);
+    void refresh();
+  });
+
+  // Approval requests are dispatched on the requesting agent's scope. A plugin
+  // context is unscoped, so it already receives every dispatch; the per-agent
+  // copy is a fallback for a deployment that tags its plugin contexts. Both
+  // paths defer to `next()` while interception is off, so the normal answerer
+  // chain is untouched.
+  const approvalListener = (req, next) => (intercept ? requestConsoleDecision(req, next) : next());
+  ctx.effect(() => ctx.on('approval/request', approvalListener), 'agent-runtimes: approval console');
+  ctx.effect(() => ctx.on('agent/created', (payload) => {
+    const agent = payload !== null && typeof payload === 'object' ? payload.agent : undefined;
+    if (agent === undefined || agent.ctx === undefined) return;
+    agent.ctx.effect(() => agent.ctx.on('approval/request', approvalListener), 'agent-runtimes: approval');
+  }), 'agent-runtimes: approval intercept');
 
   const refresh = async () => {
     if (collecting) return;
     collecting = true;
     try {
       const next = await collectSnapshot(ctx);
+
+      // Console-pending approvals are injected so the reminder centre and the
+      // decision buttons see them like any other runtime's approval.
+      const dsh = next.runtimes.find((runtime) => runtime.id === 'dsh');
+      for (const record of decisions.values()) {
+        if (record.status !== 'pending') continue;
+        const approval = {
+          id: `dsh:decision:${record.id}`,
+          tool: 'approval',
+          reason: record.reason,
+          since: record.since,
+          sessionId: record.sessionId,
+          decisionId: record.id,
+          actionable: true,
+        };
+        next.approvals.push({
+          runtimeId: 'dsh',
+          runtimeName: 'DeepSeek Harness',
+          approvalId: approval.id,
+          tool: approval.tool,
+          reason: approval.reason,
+          since: approval.since,
+          sessionId: approval.sessionId,
+          decisionId: approval.decisionId,
+          actionable: true,
+        });
+        if (dsh !== undefined) dsh.approvals.push(approval);
+      }
+      next.intercept = intercept;
+
       const events = diffActivity(snapshot, next);
       if (events.length > 0) {
         activity.unshift(...events);
@@ -1020,6 +1152,27 @@ export function apply(ctx) {
           const action = typeof parsed.action === 'string' ? parsed.action : '';
           const runtimeId = typeof parsed.runtimeId === 'string' ? parsed.runtimeId : '';
           const sessionId = typeof parsed.sessionId === 'string' ? parsed.sessionId : '';
+
+          if (action === 'setIntercept') {
+            setIntercept(parsed.enabled === true);
+            reply(200, { ok: true, intercept });
+            return;
+          }
+          if (action === 'decide') {
+            const decisionId = typeof parsed.decisionId === 'string' ? parsed.decisionId : '';
+            const decision = typeof parsed.decision === 'string' ? parsed.decision : '';
+            if (decisionId === '' || !decisions.has(decisionId)) {
+              reply(200, { ok: false, error: 'unknown-decision' });
+              return;
+            }
+            const outcome = decision === 'allowed-once' || decision === 'rejected' || decision === 'cancelled'
+              ? decision
+              : 'unavailable';
+            settle(decisionId, outcome);
+            reply(200, { ok: true, outcome });
+            return;
+          }
+
           const entry = COLLECTORS.find((item) => item.id === runtimeId);
           if (entry === undefined) {
             reply(404, { ok: false, error: 'unknown-runtime' });

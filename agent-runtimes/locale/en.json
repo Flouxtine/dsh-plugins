@@ -8,6 +8,8 @@
   "header.refresh": "Refresh",
   "header.notify": "Desktop notifications",
   "header.notifyOn": "Desktop notifications on",
+  "header.intercept": "Console approvals",
+  "header.interceptOn": "Console approvals on",
   "header.offline": "offline",
   "header.runtimes": "{count} runtimes",
   "header.pending": "{count} pending",
@@ -19,6 +21,9 @@
   "tokens": "Tokens",
   "approval.review": "Review",
   "approval.dismiss": "Dismiss",
+  "approval.allowOnce": "Allow once",
+  "approval.reject": "Reject",
+  "approval.openSession": "Open session",
   "approval.none": "No pending approvals.",
   "runtime.open": "Open",
   "runtime.interrupt": "Stop",
@@ -56,5 +61,8 @@
   "action.interrupted": "Stop requested for {name}",
   "action.interruptFailed": "Could not stop {name}",
   "action.interruptUnsupported": "This runtime cannot be stopped from the console",
+  "action.interceptOn": "Console approvals enabled — DSH approvals will be decided here",
+  "action.interceptOff": "Console approvals disabled — DSH approvals use the normal prompt",
+  "action.decisionFailed": "Could not submit the decision to {name}",
   "reminder.title": "Approval needed"
 }

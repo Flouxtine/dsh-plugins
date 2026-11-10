@@ -31,6 +31,8 @@ window.__ModuleLoader__.load({
         'header.refresh': 'Refresh',
         'header.notify': 'Desktop notifications',
         'header.notifyOn': 'Desktop notifications on',
+        'header.intercept': 'Console approvals',
+        'header.interceptOn': 'Console approvals on',
         'header.offline': 'offline',
         'header.runtimes': '{count} runtimes',
         'header.pending': '{count} pending',
@@ -40,6 +42,9 @@ window.__ModuleLoader__.load({
         'activity.newSession': 'new session',
         'approval.review': 'Review',
         'approval.dismiss': 'Dismiss',
+        'approval.allowOnce': 'Allow once',
+        'approval.reject': 'Reject',
+        'approval.openSession': 'Open session',
         'approval.none': 'No pending approvals.',
         'runtime.open': 'Open',
         'runtime.interrupt': 'Stop',
@@ -79,6 +84,9 @@ window.__ModuleLoader__.load({
         'action.interrupted': 'Stop requested for {name}',
         'action.interruptFailed': 'Could not stop {name}',
         'action.interruptUnsupported': 'This runtime cannot be stopped from the console',
+        'action.interceptOn': 'Console approvals enabled — DSH approvals will be decided here',
+        'action.interceptOff': 'Console approvals disabled — DSH approvals use the normal prompt',
+        'action.decisionFailed': 'Could not submit the decision to {name}',
         'reminder.title': 'Approval needed',
       },
       zh: {
@@ -87,6 +95,8 @@ window.__ModuleLoader__.load({
         'header.refresh': '刷新',
         'header.notify': '桌面通知',
         'header.notifyOn': '桌面通知已开启',
+        'header.intercept': '控制台审批',
+        'header.interceptOn': '控制台审批已开启',
         'header.offline': '离线',
         'header.runtimes': '{count} 个运行时',
         'header.pending': '{count} 项待处理',
@@ -96,6 +106,9 @@ window.__ModuleLoader__.load({
         'activity.newSession': '新会话',
         'approval.review': '去处理',
         'approval.dismiss': '忽略',
+        'approval.allowOnce': '允许一次',
+        'approval.reject': '拒绝',
+        'approval.openSession': '打开会话',
         'approval.none': '暂无待审批事项。',
         'runtime.open': '打开',
         'runtime.interrupt': '停止',
@@ -135,6 +148,9 @@ window.__ModuleLoader__.load({
         'action.interrupted': '已请求停止 {name}',
         'action.interruptFailed': '无法停止 {name}',
         'action.interruptUnsupported': '该运行时不支持从控制台停止',
+        'action.interceptOn': '已开启控制台审批 — DSH 审批将在本面板处理',
+        'action.interceptOff': '已关闭控制台审批 — DSH 审批走原有提示',
+        'action.decisionFailed': '无法把决定提交给 {name}',
         'reminder.title': '需要审批',
       },
     };
@@ -347,12 +363,17 @@ window.__ModuleLoader__.load({
         }, 4000);
         this.emit();
       },
-      async sendAction(action, runtimeId, sessionId) {
+      async sendAction(action, runtimeId, sessionId, extra) {
         try {
           const response = await fetch(`${API}/action`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action, runtimeId, sessionId }),
+            body: JSON.stringify({
+              action,
+              runtimeId,
+              sessionId,
+              ...(extra !== null && typeof extra === 'object' ? extra : {}),
+            }),
           });
           return await response.json();
         } catch (error) {
@@ -504,7 +525,7 @@ window.__ModuleLoader__.load({
     }
 
     function ApprovalBanner(props) {
-      const { approvals, now, titleOf, onReview, onDismiss } = props;
+      const { approvals, now, titleOf, onReview, onDismiss, onDecide } = props;
       if (approvals.length === 0) return null;
       return h('div', { className: 'ar-approvals' }, [
         h('div', { className: 'ar-meta', key: 'head' }, `${t('approval.title')} · ${approvals.length}`),
@@ -521,16 +542,33 @@ window.__ModuleLoader__.load({
               ]),
               h('span', { className: 'ar-approvalTime', key: 'time' }, formatRelative(row.since, now)),
             ]),
-            h('div', { className: 'ar-approvalActions', key: 'actions' }, [
-              h('button', {
-                type: 'button', className: 'ar-btn ar-btn--primary', key: 'review',
-                onClick: () => onReview(row),
-              }, t('approval.review')),
-              h('button', {
-                type: 'button', className: 'ar-btn', key: 'dismiss',
-                onClick: () => onDismiss(row),
-              }, t('approval.dismiss')),
-            ]),
+            h('div', { className: 'ar-approvalActions', key: 'actions' }, (
+              row.actionable === true
+                ? [
+                    h('button', {
+                      type: 'button', className: 'ar-btn ar-btn--primary', key: 'allow',
+                      onClick: () => onDecide(row, 'allowed-once'),
+                    }, t('approval.allowOnce')),
+                    h('button', {
+                      type: 'button', className: 'ar-btn', key: 'reject',
+                      onClick: () => onDecide(row, 'rejected'),
+                    }, t('approval.reject')),
+                    h('button', {
+                      type: 'button', className: 'ar-btn', key: 'open',
+                      onClick: () => onReview(row),
+                    }, t('approval.openSession')),
+                  ]
+                : [
+                    h('button', {
+                      type: 'button', className: 'ar-btn ar-btn--primary', key: 'review',
+                      onClick: () => onReview(row),
+                    }, t('approval.review')),
+                    h('button', {
+                      type: 'button', className: 'ar-btn', key: 'dismiss',
+                      onClick: () => onDismiss(row),
+                    }, t('approval.dismiss')),
+                  ]
+            )),
           ]);
         }),
       ]);
@@ -732,6 +770,15 @@ window.__ModuleLoader__.load({
         await storeState.enableNotifications();
         try { localStorage.setItem(NOTIFY_KEY, storeState.notifyEnabled ? '1' : '0'); } catch { /* ignore */ }
       };
+      const toggleIntercept = async () => {
+        const next = storeState.snapshot.intercept !== true;
+        const result = await storeState.sendAction('setIntercept', '', '', { enabled: next });
+        if (result && result.ok === true) storeState.showMessage(t(next ? 'action.interceptOn' : 'action.interceptOff'));
+      };
+      const decide = async (row, decision) => {
+        const result = await storeState.sendAction('decide', 'dsh', '', { decisionId: row.decisionId, decision });
+        if (result && result.ok !== true) storeState.showMessage(t('action.decisionFailed', { name: row.runtimeName }));
+      };
 
       return h('div', { className: 'ar-root' }, [
         h('style', { dangerouslySetInnerHTML: { __html: CSS }, key: 'style' }),
@@ -741,6 +788,13 @@ window.__ModuleLoader__.load({
             `${t('header.runtimes', { count: installed.length })} · ${t('header.pending', { count: approvals.length })}${snapshotAge > POLL_MS * 4 ? ` · ${t('header.offline')}` : ''}`),
           h('div', { className: 'ar-headerActions', key: 'actions' }, [
             storeState.message !== null ? h('span', { className: 'ar-meta', key: 'message' }, storeState.message) : null,
+            h('button', {
+              type: 'button',
+              className: storeState.snapshot.intercept === true ? 'ar-btn ar-btn--primary' : 'ar-btn',
+              key: 'intercept',
+              title: storeState.snapshot.intercept === true ? t('header.interceptOn') : t('header.intercept'),
+              onClick: () => { void toggleIntercept(); },
+            }, storeState.snapshot.intercept === true ? `✓ ${t('header.intercept')}` : t('header.intercept')),
             h('button', {
               type: 'button', className: 'ar-btn ar-btn--icon', key: 'notify',
               title: storeState.notifyEnabled ? t('header.notifyOn') : t('header.notify'),
@@ -757,6 +811,7 @@ window.__ModuleLoader__.load({
             key: 'approvals', approvals, now, titleOf,
             onReview: (row) => { void review(row); },
             onDismiss: (row) => storeState.dismiss(row.approvalId),
+            onDecide: (row, decision) => { void decide(row, decision); },
           }),
           ordered.length === 0 && absent.length === 0
             ? h('div', { className: 'ar-empty', key: 'empty' }, [
@@ -817,21 +872,40 @@ window.__ModuleLoader__.load({
               onClick: () => storeState.clearReminder(),
             }, '✕'),
           ]),
-          h('div', { className: 'ar-toastActions', key: 'actions' }, [
-            h('button', {
-              type: 'button', className: 'ar-btn ar-btn--primary', key: 'review',
-              onClick: () => {
-                const runtime = (storeState.snapshot.runtimes || []).find((row) => row.id === reminder.runtimeId);
-                if (runtime !== undefined) {
-                  const sessionId = reminder.sessionId || (runtime.active !== null && typeof runtime.active === 'object' ? runtime.active.sessionId : '');
-                  void storeState.sendAction('open', runtime.id, sessionId).then((result) => {
-                    if (result && result.ok === true) storeState.showMessage(t('action.opened', { name: runtime.name }));
-                  });
-                }
-                storeState.clearReminder();
-              },
-            }, t('approval.review')),
-          ]),
+          h('div', { className: 'ar-toastActions', key: 'actions' }, (
+            reminder.actionable === true
+              ? [
+                  h('button', {
+                    type: 'button', className: 'ar-btn ar-btn--primary', key: 'allow',
+                    onClick: () => {
+                      void storeState.sendAction('decide', 'dsh', '', { decisionId: reminder.decisionId, decision: 'allowed-once' });
+                      storeState.clearReminder();
+                    },
+                  }, t('approval.allowOnce')),
+                  h('button', {
+                    type: 'button', className: 'ar-btn', key: 'reject',
+                    onClick: () => {
+                      void storeState.sendAction('decide', 'dsh', '', { decisionId: reminder.decisionId, decision: 'rejected' });
+                      storeState.clearReminder();
+                    },
+                  }, t('approval.reject')),
+                ]
+              : [
+                  h('button', {
+                    type: 'button', className: 'ar-btn ar-btn--primary', key: 'review',
+                    onClick: () => {
+                      const runtime = (storeState.snapshot.runtimes || []).find((row) => row.id === reminder.runtimeId);
+                      if (runtime !== undefined) {
+                        const sessionId = reminder.sessionId || (runtime.active !== null && typeof runtime.active === 'object' ? runtime.active.sessionId : '');
+                        void storeState.sendAction('open', runtime.id, sessionId).then((result) => {
+                          if (result && result.ok === true) storeState.showMessage(t('action.opened', { name: runtime.name }));
+                        });
+                      }
+                      storeState.clearReminder();
+                    },
+                  }, t('approval.review')),
+                ]
+          )),
         ]),
       ]);
     }

@@ -12,6 +12,12 @@ One console for the mainstream agent runtimes on your machine, built as a
   Harness session with a pending approval or question), the console raises an
   in-panel banner, a sidebar badge, an overlay toast and an optional desktop
   notification.
+- **Console approvals (opt-in)** — the "控制台审批" switch in the panel header
+  takes over DeepSeek Harness approval requests: they appear here with
+  **允许一次 / 拒绝** buttons instead of the conversation prompt. It is off by
+  default, persists in `~/.dsh/agent-runtimes-settings.json`, fails closed after
+  five minutes, and hands any pending decision back to the normal answerer chain
+  when switched off. External runtimes still only offer "jump to the app".
 - **Recent activity** — a cross-runtime feed of what just changed: runtime
   status transitions, new sessions, session status changes and newly raised
   approvals.
@@ -53,10 +59,13 @@ the lifetime of the plugin (most recent 40 events).
 
 ## Limits
 
-- Approval reminders are observational. The console can open the runtime that
-  is waiting, but it cannot decide another product's approval for you; that
-  decision stays in the product's own UI. For DeepSeek Harness the reminder
-  shows the pending approval or question and jumps to that session.
+- External runtimes (WorkBuddy, Codex, Cursor) expose no approval API, so the
+  console can only open the app that is waiting; deciding there stays in the
+  product's own UI. Only DeepSeek Harness approvals can be decided in the panel,
+  and only while the opt-in switch is on.
+- Console approvals fail closed after five minutes, so a closed browser page
+  cannot hang an agent forever; the pending decision is then `unavailable`,
+  exactly like a missing answerer.
 - Stopping an external runtime is not offered — killing another GUI agent can
   lose its state. Only DeepSeek Harness agents can be stopped from the console.
 - CodeBuddy CN does not expose readable session state yet, so its row shows the

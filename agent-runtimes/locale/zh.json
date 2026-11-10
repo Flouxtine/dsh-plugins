@@ -8,6 +8,8 @@
   "header.refresh": "刷新",
   "header.notify": "桌面通知",
   "header.notifyOn": "桌面通知已开启",
+  "header.intercept": "控制台审批",
+  "header.interceptOn": "控制台审批已开启",
   "header.offline": "离线",
   "header.runtimes": "{count} 个运行时",
   "header.pending": "{count} 项待处理",
@@ -19,6 +21,9 @@
   "tokens": "令牌",
   "approval.review": "去处理",
   "approval.dismiss": "忽略",
+  "approval.allowOnce": "允许一次",
+  "approval.reject": "拒绝",
+  "approval.openSession": "打开会话",
   "approval.none": "暂无待审批事项。",
   "runtime.open": "打开",
   "runtime.interrupt": "停止",
@@ -56,5 +61,8 @@
   "action.interrupted": "已请求停止 {name}",
   "action.interruptFailed": "无法停止 {name}",
   "action.interruptUnsupported": "该运行时不支持从控制台停止",
+  "action.interceptOn": "已开启控制台审批 — DSH 审批将在本面板处理",
+  "action.interceptOff": "已关闭控制台审批 — DSH 审批走原有提示",
+  "action.decisionFailed": "无法把决定提交给 {name}",
   "reminder.title": "需要审批"
 }
