@@ -45,7 +45,7 @@ The Host half is a read-only observer. It polls every three seconds:
 | Runtime | Presence | Live state |
 | --- | --- | --- |
 | WorkBuddy | `pgrep` on the app bundle | `~/.workbuddy/sessions/*.json` heartbeats + `~/.workbuddy/workbuddy.db` (`sessions`, `automation_runs`, `session_usage`) |
-| CodeBuddy CN | `pgrep` on the app bundle | process state plus the chat mode from `CodeBuddy.settings`; its conversation list is not exposed yet |
+| CodeBuddy CN | `pgrep` on the app bundle | the coding-copilot extension's global storage: `genie-history/*/current.json` (workspace ↔ conversation), `message-queue` (runtime state, queued previews, model) and `edit-sessions` mtimes |
 | Codex/Codex++ | `pgrep` + rollout freshness | `~/.codex/session_index.jsonl` and the newest `~/.codex/sessions/**/rollout-*.jsonl` |
 | Cursor | `pgrep` on the app bundle | `composerHeaders` in `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
 | DeepSeek Harness | always | live DSH sessions refined by `sessionController.state` (`running`, `pendingInput`) |
@@ -68,8 +68,10 @@ the lifetime of the plugin (most recent 40 events).
   exactly like a missing answerer.
 - Stopping an external runtime is not offered — killing another GUI agent can
   lose its state. Only DeepSeek Harness agents can be stopped from the console.
-- CodeBuddy CN does not expose readable session state yet, so its row shows the
-  chat mode and presence only.
+- CodeBuddy CN exposes no session status of its own, so its row derives the
+  conversation list, the workspace (decoded from the history directory name),
+  the last user message as the title and an activity-based running state; it
+  does not detect CodeBuddy approvals.
 - The Codex approval signal is heuristic: an unfinished turn whose last record
   is a `function_call` while the approval policy asks.
 

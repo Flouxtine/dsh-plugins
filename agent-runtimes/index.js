@@ -370,11 +370,32 @@ async function collectWorkBuddy() {
 
 function codeBuddyPaths() {
   const dir = join(HOME, 'Library', 'Application Support', 'CodeBuddy CN');
+  const globals = join(dir, 'User', 'globalStorage');
+  const extension = join(globals, 'tencent-cloud.coding-copilot');
   return {
     app: '/Applications/CodeBuddy CN.app',
     dir,
-    globalState: join(dir, 'User', 'globalStorage', 'state.vscdb'),
+    globalState: join(globals, 'state.vscdb'),
+    genie: join(extension, 'genie-history'),
+    queue: join(extension, 'message-queue'),
+    edits: join(extension, 'edit-sessions'),
   };
+}
+
+/** The extension names workspace history directories with base64url(path). */
+function decodeWorkspaceName(name) {
+  try {
+    let text = name;
+    // Trailing underscores stand in for base64 padding.
+    const padding = text.length - text.replace(/_+$/, '').length;
+    if (padding > 0) text = `${text.slice(0, text.length - padding)}${'='.repeat(padding)}`;
+    text = text.replace(/-/g, '+').replace(/_/g, '/');
+    text += '='.repeat((4 - (text.length % 4)) % 4);
+    const decoded = Buffer.from(text, 'base64').toString('utf8');
+    return decoded.startsWith('/') ? decoded : '';
+  } catch {
+    return '';
+  }
 }
 
 async function collectCodeBuddy() {
@@ -382,41 +403,94 @@ async function collectCodeBuddy() {
   const installed = pathExists(paths.app) || pathExists(paths.dir);
   if (!installed) return absentRuntime('codebuddy', 'CodeBuddy CN');
 
+  const now = Date.now();
   const running = await isRunning('/Applications/CodeBuddy CN.app');
+  const conversations = new Map();
 
-  // CodeBuddy keeps its chat index in the workspace/global state. It is empty
-  // until a conversation exists, so the runtime stays presence-only then.
-  let sessions = [];
-  if (pathExists(paths.globalState)) {
-    try {
-      const rows = await querySqlite(paths.globalState, [
-        "SELECT value FROM ItemTable WHERE key = 'chat.ChatSessionStore.index'",
-      ].join(' '));
-      const parsed = rows.length > 0 && typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : null;
-      const entries = parsed && typeof parsed === 'object' && parsed.entries !== null && typeof parsed.entries === 'object'
-        ? Object.values(parsed.entries)
-        : [];
-      sessions = normalizeRows(entries, (row) => ({
-        sessionId: typeof row.id === 'string' ? row.id : '',
-        title: typeof row.title === 'string' && row.title !== '' ? row.title : 'Conversation',
-        status: typeof row.status === 'string' ? row.status : 'unknown',
-        model: typeof row.model === 'string' ? row.model : '',
-        cwd: typeof row.cwd === 'string' ? row.cwd : '',
+  const touch = (id, patch) => {
+    if (typeof id !== 'string' || id === '') return;
+    let entry = conversations.get(id);
+    if (entry === undefined) {
+      entry = { id, cwd: '', updatedAt: 0, model: '', items: [] };
+      conversations.set(id, entry);
+    }
+    if (patch === undefined) return;
+    if (typeof patch.cwd === 'string' && patch.cwd !== '') entry.cwd = patch.cwd;
+    if (typeof patch.updatedAt === 'number' && patch.updatedAt > entry.updatedAt) entry.updatedAt = patch.updatedAt;
+    if (typeof patch.model === 'string' && patch.model !== '') entry.model = patch.model;
+    if (Array.isArray(patch.items) && patch.items.length > 0) entry.items = patch.items;
+  };
+
+  // genie-history/<base64url workspace>/current.json maps a workspace to its
+  // most recent conversation id.
+  for (const workspaceKey of listDir(paths.genie)) {
+    const current = readJsonFile(join(paths.genie, workspaceKey, 'current.json'));
+    if (current === null || typeof current.conversationId !== 'string') continue;
+    touch(current.conversationId, {
+      cwd: decodeWorkspaceName(workspaceKey),
+      updatedAt: Date.parse(current.lastUpdated || '') || 0,
+    });
+  }
+
+  // message-queue/<hash>.json carries each live conversation's runtime state
+  // and its queued user messages.
+  for (const file of listDir(paths.queue)) {
+    if (!file.endsWith('.json')) continue;
+    const parsed = readJsonFile(join(paths.queue, file));
+    const map = parsed !== null && parsed.conversations !== null && parsed.conversations !== undefined
+      && typeof parsed.conversations === 'object' ? parsed.conversations : null;
+    if (map === null) continue;
+    for (const id of Object.keys(map)) {
+      const row = map[id];
+      if (row === null || typeof row !== 'object') continue;
+      const items = Array.isArray(row.items) ? row.items : [];
+      const last = items.length > 0 ? items[items.length - 1] : null;
+      touch(id, {
         updatedAt: typeof row.updatedAt === 'number' ? row.updatedAt : 0,
-        lastActivityAt: 0,
-        permissionMode: '',
-        unread: false,
-        kind: 'session',
-      })).filter((row) => row.sessionId !== '');
-    } catch {
-      sessions = [];
+        model: last !== null && typeof last.modelId === 'string' ? last.modelId : '',
+        items,
+      });
     }
   }
 
-  const active = sessions[0] || null;
+  // edit-sessions/<conversationId>.json is rewritten whenever the agent edits
+  // a file, so its mtime is the freshest activity signal.
+  for (const file of listDir(paths.edits)) {
+    if (!file.endsWith('.json')) continue;
+    const id = file.slice(0, -'.json'.length);
+    if (id === '') continue;
+    touch(id, { updatedAt: mtimeMs(join(paths.edits, file)) });
+  }
+
+  const sessions = [];
+  for (const entry of conversations.values()) {
+    const lastItem = entry.items.length > 0 ? entry.items[entry.items.length - 1] : null;
+    const preview = lastItem !== null && typeof lastItem.previewText === 'string' ? lastItem.previewText.trim() : '';
+    const placeholder = entry.cwd !== '' ? entry.cwd.split('/').pop() : `Conversation ${entry.id.slice(0, 8)}`;
+    const rawTitle = preview !== '' ? preview : placeholder;
+    const active = entry.updatedAt > 0 && now - entry.updatedAt < LIVE_FILE_MS;
+    sessions.push({
+      sessionId: entry.id,
+      title: rawTitle.length > 80 ? `${rawTitle.slice(0, 77)}\u2026` : rawTitle,
+      status: active ? 'running' : 'idle',
+      model: entry.model,
+      cwd: entry.cwd,
+      updatedAt: entry.updatedAt,
+      lastActivityAt: entry.updatedAt,
+      permissionMode: '',
+      unread: false,
+      tokens: 0,
+      context: 0,
+      kind: 'conversation',
+    });
+  }
+
+  sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  const activeSession = sessions[0] || null;
+  const runningCount = sessions.filter((row) => row.status === 'running').length;
 
   // The chat mode (Agent / Plan / Ask) is the closest thing CodeBuddy exposes
-  // to a live route; its conversation list stays empty until one exists.
+  // to a configured route.
   let mode = '';
   if (pathExists(paths.globalState)) {
     try {
@@ -436,11 +510,11 @@ async function collectCodeBuddy() {
     name: 'CodeBuddy CN',
     installed: true,
     running,
-    status: running ? (active !== null ? 'running' : 'idle') : 'stopped',
-    active,
-    sessions,
+    status: running ? (runningCount > 0 ? 'running' : 'idle') : 'stopped',
+    active: activeSession,
+    sessions: sessions.slice(0, 12),
     approvals: [],
-    extra: { source: 'presence', mode },
+    extra: { source: 'storage', mode, conversations: sessions.length },
   };
 }
 
