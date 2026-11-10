@@ -156,15 +156,22 @@ window.__ModuleLoader__.load({
     };
 
     const CSS = `
-.ar-root { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-size: 13px; }
+.ar-root { flex: 1 1 auto; height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-size: 13px; }
 .ar-root *, .ar-root *::before, .ar-root *::after { box-sizing: border-box; }
-.ar-header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.ar-header { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.ar-titleBlock { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
 .ar-title { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
-.ar-meta { color: var(--dsw-alias-label-secondary); font-size: 12px; }
-.ar-headerActions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.ar-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 12px 18px; display: flex; flex-direction: column; gap: 10px; }
+.ar-meta { color: var(--dsw-alias-label-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-headerActions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
+.ar-message { border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); border-radius: 8px; padding: 7px 10px; font-size: 12px; }
+.ar-scroll { flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; padding: 10px 12px 18px; display: flex; flex-direction: column; gap: 10px; }
 .ar-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 34px 18px; text-align: center; color: var(--dsw-alias-label-secondary); }
 .ar-emptyTitle { font-size: 14px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+
+.ar-iconBtn { appearance: none; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); border-radius: 6px; width: 26px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; font-size: 13px; line-height: 1; }
+.ar-iconBtn:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
+.ar-iconBtn--on { background: var(--dsw-alias-brand-primary); border-color: transparent; color: #fff; }
+.ar-iconBtn--on:hover { background: var(--dsw-alias-brand-primary); color: #fff; }
 
 .ar-btn { appearance: none; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); border-radius: 6px; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .ar-btn:hover { background: var(--dsw-alias-bg-layer-2); }
@@ -186,12 +193,13 @@ window.__ModuleLoader__.load({
 .ar-runtime { border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); overflow: hidden; }
 .ar-runtime--absent { opacity: 0.55; }
 .ar-runtime--error { border-color: var(--dsw-alias-state-error-primary); }
-.ar-runtimeHead { display: flex; align-items: center; gap: 9px; padding: 9px 11px; cursor: pointer; }
+.ar-runtimeHead { display: flex; align-items: center; gap: 9px; padding: 9px 11px; cursor: pointer; min-width: 0; }
 .ar-runtimeHead:hover { background: var(--dsw-alias-bg-layer-2); }
-.ar-badge { width: 24px; height: 24px; border-radius: 7px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; }
-.ar-runtimeName { font-weight: 600; font-size: 13px; }
-.ar-runtimeState { color: var(--dsw-alias-label-secondary); font-size: 12px; }
-.ar-runtimeRight { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.ar-badge { width: 22px; height: 22px; border-radius: 6px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
+.ar-runtimeNames { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.ar-runtimeName { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-runtimeState { color: var(--dsw-alias-label-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-runtimeRight { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
 .ar-chevron { color: var(--dsw-alias-label-secondary); font-size: 11px; transition: transform 0.12s ease; }
 .ar-chevron--open { transform: rotate(90deg); }
 
@@ -249,11 +257,6 @@ window.__ModuleLoader__.load({
 .ar-toastClose { margin-left: auto; }
 .ar-btn { appearance: none; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); border-radius: 6px; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .ar-btn--primary { background: var(--dsw-alias-brand-primary); border-color: transparent; color: #fff; }
-`;
-
-    const ICON_CSS = `
-.ar-iconWrap { position: relative; display: inline-flex; }
-.ar-iconBadge { position: absolute; top: -5px; right: -7px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 999px; background: var(--dsw-alias-state-warn-primary); color: #fff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 `;
 
     const RUNTIME_BADGES = {
@@ -500,6 +503,18 @@ window.__ModuleLoader__.load({
       return h('span', { className: `ar-pill ar-pill--${runtimeStatusKey(status)}` }, t(`status.${runtimeStatusKey(status)}`));
     }
 
+    function ShieldIcon(props) {
+      const on = props.on === true;
+      return h('svg', {
+        width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round',
+        strokeLinejoin: 'round', 'aria-hidden': true, style: { display: 'block' },
+      }, [
+        h('path', { d: 'M8 1.5l5.3 2.1v3.3c0 3.3-2.3 5.6-5.3 6.6-3-1-5.3-3.3-5.3-6.6V3.6z' }),
+        on ? h('path', { d: 'M5.5 8.1l1.8 1.8 3.2-3.5' }) : null,
+      ]);
+    }
+
     function RuntimeBadge({ runtimeId }) {
       const badge = RUNTIME_BADGES[runtimeId] || { letter: '?', color: '#64748B' };
       return h('span', { className: 'ar-badge', style: { background: badge.color } }, badge.letter);
@@ -509,18 +524,21 @@ window.__ModuleLoader__.load({
       const size = props.size || 16;
       const storeState = useStore();
       const count = (storeState.snapshot.approvals || []).filter((row) => !storeState.dismissed.has(row.approvalId)).length;
-      return h('span', { className: 'ar-iconWrap' }, [
-        h('style', { dangerouslySetInnerHTML: { __html: ICON_CSS }, key: 'style' }),
-        h('svg', {
-          width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
-          stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round',
-          strokeLinejoin: 'round', 'aria-hidden': true, style: { display: 'block' },
-        }, [
-          h('rect', { x: 1.7, y: 2.2, width: 12.6, height: 9.2, rx: 1.6 }),
-          h('path', { d: 'M4.6 6.2h6.8M4.6 8.6h4.4' }),
-          h('path', { d: 'M3.4 13.6h9.2' }),
-        ]),
-        count > 0 ? h('span', { className: 'ar-iconBadge', key: 'badge' }, String(count)) : null,
+      return h('svg', {
+        width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round',
+        strokeLinejoin: 'round', 'aria-hidden': true, style: { display: 'block' },
+      }, [
+        h('rect', { x: 1.7, y: 2.2, width: 12.6, height: 9.2, rx: 1.6 }),
+        h('path', { d: 'M4.6 6.2h6.8M4.6 8.6h4.4' }),
+        h('path', { d: 'M3.4 13.6h9.2' }),
+        count > 0
+          ? h('circle', {
+              cx: 13.8, cy: 2.4, r: 2.2, key: 'badge',
+              fill: 'var(--dsw-alias-state-warn-primary)',
+              stroke: 'var(--dsw-alias-bg-base)', strokeWidth: 1.1,
+            })
+          : null,
       ]);
     }
 
@@ -588,9 +606,8 @@ window.__ModuleLoader__.load({
         role: 'button', tabIndex: 0,
         onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') onToggle(runtime.id); },
       }, [
-        h(StatusDot, { status, key: 'dot' }),
         h(RuntimeBadge, { runtimeId: runtime.id, key: 'badge' }),
-        h('div', { key: 'names' }, [
+        h('div', { className: 'ar-runtimeNames', key: 'names' }, [
           h('div', { className: 'ar-runtimeName', key: 'name' }, runtime.name),
           h('div', { className: 'ar-runtimeState', key: 'state' },
             notInstalled
@@ -783,30 +800,35 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'ar-root' }, [
         h('style', { dangerouslySetInnerHTML: { __html: CSS }, key: 'style' }),
         h('div', { className: 'ar-header', key: 'header' }, [
-          h('span', { className: 'ar-title', key: 'title' }, t('panel')),
-          h('span', { className: 'ar-meta', key: 'meta' },
-            `${t('header.runtimes', { count: installed.length })} · ${t('header.pending', { count: approvals.length })}${snapshotAge > POLL_MS * 4 ? ` · ${t('header.offline')}` : ''}`),
+          h('div', { className: 'ar-titleBlock', key: 'titleBlock' }, [
+            h('span', { className: 'ar-title', key: 'title' }, t('panel')),
+            h('span', { className: 'ar-meta', key: 'meta' },
+              `${t('header.runtimes', { count: installed.length })} · ${t('header.pending', { count: approvals.length })}${snapshotAge > POLL_MS * 4 ? ` · ${t('header.offline')}` : ''}`),
+          ]),
           h('div', { className: 'ar-headerActions', key: 'actions' }, [
-            storeState.message !== null ? h('span', { className: 'ar-meta', key: 'message' }, storeState.message) : null,
             h('button', {
               type: 'button',
-              className: storeState.snapshot.intercept === true ? 'ar-btn ar-btn--primary' : 'ar-btn',
+              className: `ar-iconBtn${storeState.snapshot.intercept === true ? ' ar-iconBtn--on' : ''}`,
               key: 'intercept',
               title: storeState.snapshot.intercept === true ? t('header.interceptOn') : t('header.intercept'),
+              'aria-pressed': storeState.snapshot.intercept === true,
               onClick: () => { void toggleIntercept(); },
-            }, storeState.snapshot.intercept === true ? `✓ ${t('header.intercept')}` : t('header.intercept')),
+            }, h(ShieldIcon, { on: storeState.snapshot.intercept === true })),
             h('button', {
-              type: 'button', className: 'ar-btn ar-btn--icon', key: 'notify',
+              type: 'button', className: 'ar-iconBtn', key: 'notify',
               title: storeState.notifyEnabled ? t('header.notifyOn') : t('header.notify'),
               onClick: () => { void toggleNotifications(); },
             }, storeState.notifyEnabled ? '🔔' : '🔕'),
             h('button', {
-              type: 'button', className: 'ar-btn ar-btn--icon', key: 'refresh',
+              type: 'button', className: 'ar-iconBtn', key: 'refresh',
               title: t('header.refresh'), onClick: () => { void storeState.refresh(); },
             }, '⟳'),
           ]),
         ]),
         h('div', { className: 'ar-scroll', key: 'scroll' }, [
+          storeState.message !== null
+            ? h('div', { className: 'ar-message', key: 'message' }, storeState.message)
+            : null,
           h(ApprovalBanner, {
             key: 'approvals', approvals, now, titleOf,
             onReview: (row) => { void review(row); },
@@ -831,9 +853,8 @@ window.__ModuleLoader__.load({
                 className: 'ar-runtime ar-runtime--absent', key: runtime.id,
               }, [
                 h('div', { className: 'ar-runtimeHead' }, [
-                  h(StatusDot, { status: 'absent', key: 'dot' }),
                   h(RuntimeBadge, { runtimeId: runtime.id, key: 'badge' }),
-                  h('div', { key: 'names' }, [
+                  h('div', { className: 'ar-runtimeNames', key: 'names' }, [
                     h('div', { className: 'ar-runtimeName', key: 'name' }, runtime.name),
                     h('div', { className: 'ar-runtimeState', key: 'state' }, t('runtime.notInstalled')),
                   ]),
