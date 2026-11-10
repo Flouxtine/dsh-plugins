@@ -18,6 +18,12 @@ One console for the mainstream agent runtimes on your machine, built as a
   default, persists in `~/.dsh/agent-runtimes-settings.json`, fails closed after
   five minutes, and hands any pending decision back to the normal answerer chain
   when switched off. External runtimes still only offer "jump to the app".
+- **External approvals (permission-gated)** — WorkBuddy, CodeBuddy CN, Cursor and
+  Codex expose no approval API, so the console drives their prompt with macOS UI
+  scripting. Grant DeepSeek Harness **Accessibility** and **Automation** in
+  System Settings → Privacy & Security and the approval card offers
+  **允许一次 / 拒绝** for those runtimes too; without the permission it says so
+  and offers "jump to the app".
 - **Recent activity** — a cross-runtime feed of what just changed: runtime
   status transitions, new sessions, session status changes and newly raised
   approvals.
@@ -79,9 +85,9 @@ Harness uses the open-turn boundary plus `sessionController.state.pendingInput`.
 ## Limits
 
 - External runtimes (WorkBuddy, Codex, Cursor) expose no approval API, so the
-  console can only open the app that is waiting; deciding there stays in the
-  product's own UI. Only DeepSeek Harness approvals can be decided in the panel,
-  and only while the opt-in switch is on.
+  console can only open the app that is waiting unless the UI-scripting
+  permission is granted (see above). Deciding there stays in the product's own
+  UI otherwise.
 - Console approvals fail closed after five minutes, so a closed browser page
   cannot hang an agent forever; the pending decision is then `unavailable`,
   exactly like a missing answerer.

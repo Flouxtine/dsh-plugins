@@ -67,5 +67,7 @@
   "action.interceptOn": "已开启控制台审批 — DSH 审批将在本面板处理",
   "action.interceptOff": "已关闭控制台审批 — DSH 审批走原有提示",
   "action.decisionFailed": "无法把决定提交给 {name}",
+  "action.decisionSent": "已把决定发给 {name}",
+  "approval.needsAccessibility": "在系统设置里给 DeepSeek Harness 开启「辅助功能」权限，才能在这个面板里直接处理这些审批。",
   "reminder.title": "需要审批"
 }

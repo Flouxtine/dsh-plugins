@@ -92,6 +92,8 @@ window.__ModuleLoader__.load({
         'action.interceptOn': 'Console approvals enabled — DSH approvals will be decided here',
         'action.interceptOff': 'Console approvals disabled — DSH approvals use the normal prompt',
         'action.decisionFailed': 'Could not submit the decision to {name}',
+        'action.decisionSent': 'Decision sent to {name}',
+        'approval.needsAccessibility': 'Grant DeepSeek Harness Accessibility permission in System Settings to decide these approvals from the panel.',
         'reminder.title': 'Approval needed',
       },
       zh: {
@@ -161,6 +163,8 @@ window.__ModuleLoader__.load({
         'action.interceptOn': '已开启控制台审批 — DSH 审批将在本面板处理',
         'action.interceptOff': '已关闭控制台审批 — DSH 审批走原有提示',
         'action.decisionFailed': '无法把决定提交给 {name}',
+        'action.decisionSent': '已把决定发给 {name}',
+        'approval.needsAccessibility': '在系统设置里给 DeepSeek Harness 开启「辅助功能」权限，才能在这个面板里直接处理这些审批。',
         'reminder.title': '需要审批',
       },
     };
@@ -751,6 +755,7 @@ window.__ModuleLoader__.load({
         return rank(a) - rank(b);
       });
       const snapshotAge = now - (storeState.snapshot.now || 0);
+      const accessibility = storeState.snapshot.accessibility === true;
       const runningCount = installed.filter((runtime) => runtime.status === 'running' || runtime.status === 'waiting').length;
       const sessionCount = installed.reduce((total, runtime) => total + (Array.isArray(runtime.sessions) ? runtime.sessions.length : 0), 0);
 
@@ -819,8 +824,14 @@ window.__ModuleLoader__.load({
         if (result && result.ok === true) storeState.showMessage(t(next ? 'action.interceptOn' : 'action.interceptOff'));
       };
       const decide = async (row, decision) => {
-        const result = await storeState.sendAction('decide', 'dsh', '', { decisionId: row.decisionId, decision });
-        if (result && result.ok !== true) storeState.showMessage(t('action.decisionFailed', { name: row.runtimeName }));
+        if (row.decisionId !== undefined) {
+          const result = await storeState.sendAction('decide', 'dsh', '', { decisionId: row.decisionId, decision });
+          if (result && result.ok !== true) storeState.showMessage(t('action.decisionFailed', { name: row.runtimeName }));
+          return;
+        }
+        const result = await storeState.sendAction('approveExternal', row.runtimeId, '', { decision });
+        if (result && result.ok === true) storeState.showMessage(t('action.decisionSent', { name: row.runtimeName }));
+        else storeState.showMessage(t('action.decisionFailed', { name: row.runtimeName }));
       };
 
       return h('div', { className: 'ar-root' }, [
@@ -875,6 +886,9 @@ window.__ModuleLoader__.load({
             onDismiss: (row) => storeState.dismiss(row.approvalId),
             onDecide: (row, decision) => { void decide(row, decision); },
           }),
+          accessibility === false && approvals.some((row) => row.runtimeId !== 'dsh')
+            ? h('div', { className: 'ar-message', key: 'accessibility' }, t('approval.needsAccessibility'))
+            : null,
           ordered.length === 0 && absent.length === 0
             ? h('div', { className: 'ar-empty', key: 'empty' }, [
               h('div', { className: 'ar-emptyTitle', key: 'title' }, t('empty.title')),

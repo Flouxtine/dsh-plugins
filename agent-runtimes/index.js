@@ -47,6 +47,92 @@ const RECENT_ACTIVITY_MS = 10 * 60 * 1000;
 const TODO_ACTIVE_MS = 30 * 60 * 1000;
 const STATUS_DEBOUNCE_MS = 30 * 1000;
 
+/**
+ * External agent apps expose no approval API, so the console drives their
+ * prompt through macOS UI scripting. Each target names the app plus the button
+ * labels (and a keystroke fallback) its approval prompt uses.
+ */
+const EXTERNAL_APPROVAL_TARGETS = {
+  workbuddy: {
+    app: 'WorkBuddy',
+    allow: ['允许', '允许一次', 'Allow', 'Allow Once', '继续', 'Continue', '是', 'Yes'],
+    reject: ['拒绝', 'Reject', '否', 'No', '取消', 'Cancel'],
+  },
+  codebuddy: {
+    app: 'CodeBuddy CN',
+    allow: ['允许', '允许一次', 'Allow', 'Allow Once', '继续', 'Continue', '是', 'Yes'],
+    reject: ['拒绝', 'Reject', '否', 'No', '取消', 'Cancel'],
+  },
+  cursor: {
+    app: 'Cursor',
+    allow: ['Allow', 'Allow Once', 'Yes', 'Continue', '允许', '继续'],
+    reject: ['Reject', 'No', 'Cancel', '拒绝', '取消'],
+  },
+  codex: {
+    app: 'Codex++',
+    allow: ['Allow', 'Allow Once', 'Yes', '允许'],
+    reject: ['Reject', 'No', '拒绝'],
+  },
+};
+
+function buildApprovalScript(target, allow) {
+  const labels = (allow ? target.allow : target.reject).map((label) => `"${label}"`).join(', ');
+  const key = allow ? 'y' : 'n';
+  return [
+    `tell application "${target.app}" to activate`,
+    'delay 0.6',
+    'tell application "System Events"',
+    '  set frontmost of (first process whose frontmost is true) to true',
+    '  delay 0.3',
+    '  set proc to (first process whose frontmost is true)',
+    '  set clicked to false',
+    '  try',
+    `    click (first button of window 1 of proc whose name is in {${labels}})`,
+    '    set clicked to true',
+    '  end try',
+    '  if not clicked then',
+    '    try',
+    `      click (first button of sheet 1 of window 1 of proc whose name is in {${labels}})`,
+    '      set clicked to true',
+    '    end try',
+    '  end if',
+    '  if not clicked then',
+    `    keystroke "${key}"`,
+    '  end if',
+    'end tell',
+  ].join('\n');
+}
+
+let accessibilityAvailable;
+let accessibilityCheckedAt = 0;
+
+/** Whether macOS lets this process read another app's UI elements. */
+async function probeAccessibility(now) {
+  if (accessibilityAvailable !== undefined && now - accessibilityCheckedAt < 30000) return accessibilityAvailable;
+  try {
+    const { stdout } = await execFileAsync(
+      '/usr/bin/osascript',
+      ['-e', [
+        'tell application "System Events"',
+        '  set proc to (first process whose frontmost is true)',
+        '  try',
+        '    get name of every window of proc',
+        '    return "ok"',
+        '  on error',
+        '    return "denied"',
+        '  end try',
+        'end tell',
+      ].join('\n')],
+      { timeout: 8000 },
+    );
+    accessibilityAvailable = String(stdout || '').includes('ok');
+  } catch {
+    accessibilityAvailable = false;
+  }
+  accessibilityCheckedAt = now;
+  return accessibilityAvailable;
+}
+
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
 /* ------------------------------------------------------------------ */
@@ -1242,6 +1328,14 @@ export function apply(ctx) {
         if (dsh !== undefined) dsh.approvals.push(approval);
       }
       next.intercept = intercept;
+      const accessibility = await probeAccessibility(next.now);
+      next.accessibility = accessibility;
+      for (const approval of next.approvals) {
+        if (approval.decisionId === undefined && approval.runtimeId !== 'dsh') {
+          approval.actionable = accessibility === true;
+          approval.via = 'ui';
+        }
+      }
 
       const events = diffActivity(snapshot, next);
       if (events.length > 0) {
@@ -1321,6 +1415,55 @@ export function apply(ctx) {
               : 'unavailable';
             settle(decisionId, outcome);
             reply(200, { ok: true, outcome });
+            return;
+          }
+          if (action === 'inspectUi') {
+            if (accessibilityAvailable !== true) {
+              reply(200, { ok: false, error: 'accessibility-denied' });
+              return;
+            }
+            void (async () => {
+              try {
+                const script = [
+                  'tell application "System Events"',
+                  '  set proc to (first process whose frontmost is true)',
+                  '  set out to "process=" & (name of proc)',
+                  '  try',
+                  '    set out to out & " windows=" & ((name of every window of proc) as string)',
+                  '  end try',
+                  '  try',
+                  '    set out to out & " buttons=" & ((name of every button of window 1 of proc) as string)',
+                  '  end try',
+                  '  return out',
+                  'end tell',
+                ].join('\n');
+                const { stdout } = await execFileAsync('/usr/bin/osascript', ['-e', script], { timeout: 20000 });
+                reply(200, { ok: true, report: String(stdout || '').trim() });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
+            return;
+          }
+          if (action === 'approveExternal') {
+            const runtimeId = typeof parsed.runtimeId === 'string' ? parsed.runtimeId : '';
+            const target = EXTERNAL_APPROVAL_TARGETS[runtimeId];
+            if (target === undefined) {
+              reply(200, { ok: false, error: 'unsupported-runtime' });
+              return;
+            }
+            if (accessibilityAvailable !== true) {
+              reply(200, { ok: false, error: 'accessibility-denied' });
+              return;
+            }
+            void (async () => {
+              try {
+                await execFileAsync('/usr/bin/osascript', ['-e', buildApprovalScript(target, parsed.decision !== 'rejected')], { timeout: 20000 });
+                reply(200, { ok: true });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
             return;
           }
 

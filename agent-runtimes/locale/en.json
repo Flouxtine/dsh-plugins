@@ -67,5 +67,7 @@
   "action.interceptOn": "Console approvals enabled — DSH approvals will be decided here",
   "action.interceptOff": "Console approvals disabled — DSH approvals use the normal prompt",
   "action.decisionFailed": "Could not submit the decision to {name}",
+  "action.decisionSent": "Decision sent to {name}",
+  "approval.needsAccessibility": "Grant DeepSeek Harness Accessibility permission in System Settings to decide these approvals from the panel.",
   "reminder.title": "Approval needed"
 }
