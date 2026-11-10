@@ -5,12 +5,16 @@ One console for the mainstream agent runtimes on your machine, built as a
 
 - **Runtimes** — WorkBuddy, CodeBuddy CN, Codex/Codex++, Cursor and DeepSeek
   Harness itself, each with its live process state, current session, model,
-  working directory and recent sessions in one list.
+  working directory, token usage and recent sessions in one list.
 - **Approval reminders** — when a runtime reports something waiting for you
-  (a WorkBuddy automation pending review, a Codex tool call awaiting approval, a
-  Cursor composer with blocking pending actions), the console raises an
+  (a WorkBuddy session pending on your answer, a Codex tool call awaiting
+  approval, a Cursor composer with blocking pending actions, or a DeepSeek
+  Harness session with a pending approval or question), the console raises an
   in-panel banner, a sidebar badge, an overlay toast and an optional desktop
   notification.
+- **Recent activity** — a cross-runtime feed of what just changed: runtime
+  status transitions, new sessions, session status changes and newly raised
+  approvals.
 - **Actions** — open or activate any installed runtime, open a DeepSeek Harness
   session, and request a stop for a running Harness agent.
 
@@ -34,25 +38,31 @@ The Host half is a read-only observer. It polls every three seconds:
 
 | Runtime | Presence | Live state |
 | --- | --- | --- |
-| WorkBuddy | `pgrep` on the app bundle | `~/.workbuddy/sessions/*.json` heartbeats + `~/.workbuddy/workbuddy.db` (`sessions`, `automation_runs`) |
-| CodeBuddy CN | `pgrep` on the app bundle | process state; chat storage is not exposed yet |
+| WorkBuddy | `pgrep` on the app bundle | `~/.workbuddy/sessions/*.json` heartbeats + `~/.workbuddy/workbuddy.db` (`sessions`, `automation_runs`, `session_usage`) |
+| CodeBuddy CN | `pgrep` on the app bundle | process state plus the chat mode from `CodeBuddy.settings`; its conversation list is not exposed yet |
 | Codex/Codex++ | `pgrep` + rollout freshness | `~/.codex/session_index.jsonl` and the newest `~/.codex/sessions/**/rollout-*.jsonl` |
 | Cursor | `pgrep` on the app bundle | `composerHeaders` in `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
-| DeepSeek Harness | always | live DSH sessions, with open-turn boundaries for the running state |
+| DeepSeek Harness | always | live DSH sessions refined by `sessionController.state` (`running`, `pendingInput`) |
 
 SQLite is read through `node:sqlite` when the runtime provides it, with the
 `sqlite3` CLI as a fallback. Nothing outside `~/.dsh` is written, and no other
 application's state is ever modified.
 
+The activity feed is a diff between consecutive snapshots, kept in memory for
+the lifetime of the plugin (most recent 40 events).
+
 ## Limits
 
 - Approval reminders are observational. The console can open the runtime that
   is waiting, but it cannot decide another product's approval for you; that
-  decision stays in the product's own UI.
+  decision stays in the product's own UI. For DeepSeek Harness the reminder
+  shows the pending approval or question and jumps to that session.
 - Stopping an external runtime is not offered — killing another GUI agent can
   lose its state. Only DeepSeek Harness agents can be stopped from the console.
-- CodeBuddy CN does not expose readable session state yet, so its row is
-  presence-only until its storage format is understood.
+- CodeBuddy CN does not expose readable session state yet, so its row shows the
+  chat mode and presence only.
+- The Codex approval signal is heuristic: an unfinished turn whose last record
+  is a `function_call` while the approval policy asks.
 
 ## License
 

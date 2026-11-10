@@ -115,11 +115,12 @@ function readTailLines(path, maxLines) {
     const size = fstatSync(fd).size;
     if (size === 0) return [];
     const chunk = Math.min(size, TAIL_BYTES);
+    const offset = Math.max(0, size - chunk);
     const buffer = Buffer.alloc(chunk);
-    readSync(fd, buffer, 0, chunk, Math.max(0, size - chunk));
+    readSync(fd, buffer, 0, chunk, offset);
     const lines = buffer.toString('utf8').split('\n');
-    // The first line is almost always a partial record after a byte cut.
-    if (lines.length > 1) lines.shift();
+    // Only a read that started mid-file can begin with a partial record.
+    if (offset > 0 && lines.length > 1) lines.shift();
     return lines.slice(-maxLines);
   } catch {
     return [];
@@ -255,6 +256,7 @@ async function collectWorkBuddy() {
 
   let sessions = [];
   let automations = [];
+  let usage = [];
   if (pathExists(paths.db)) {
     try {
       sessions = await querySqlite(paths.db, [
@@ -272,6 +274,18 @@ async function collectWorkBuddy() {
     } catch {
       automations = [];
     }
+    try {
+      usage = await querySqlite(paths.db, 'SELECT session_id, used, size FROM session_usage');
+    } catch {
+      usage = [];
+    }
+  }
+
+  const usageById = new Map();
+  for (const row of usage) {
+    if (typeof row.session_id === 'string' && typeof row.used === 'number') {
+      usageById.set(row.session_id, { tokens: row.used, context: typeof row.size === 'number' ? row.size : 0 });
+    }
   }
 
   const rows = normalizeRows(sessions, (row) => ({
@@ -284,6 +298,8 @@ async function collectWorkBuddy() {
     lastActivityAt: typeof row.last_activity_at === 'number' ? row.last_activity_at : 0,
     permissionMode: typeof row.permission_mode === 'string' ? row.permission_mode : '',
     unread: Boolean(row.unread),
+    tokens: (typeof row.id === 'string' ? usageById.get(row.id) : undefined)?.tokens || 0,
+    context: (typeof row.id === 'string' ? usageById.get(row.id) : undefined)?.context || 0,
     kind: 'session',
   })).filter((row) => row.sessionId !== '');
 
@@ -393,6 +409,23 @@ async function collectCodeBuddy() {
   }
 
   const active = sessions[0] || null;
+
+  // The chat mode (Agent / Plan / Ask) is the closest thing CodeBuddy exposes
+  // to a live route; its conversation list stays empty until one exists.
+  let mode = '';
+  if (pathExists(paths.globalState)) {
+    try {
+      const rows = await querySqlite(paths.globalState, "SELECT value FROM ItemTable WHERE key = 'CodeBuddy.settings'");
+      if (rows.length > 0 && typeof rows[0].value === 'string') {
+        const settings = JSON.parse(rows[0].value);
+        const chat = settings !== null && typeof settings === 'object' ? settings.chat : null;
+        if (chat !== null && typeof chat === 'object' && typeof chat.defaultMode === 'string') mode = chat.defaultMode;
+      }
+    } catch {
+      mode = '';
+    }
+  }
+
   return {
     id: 'codebuddy',
     name: 'CodeBuddy CN',
@@ -402,7 +435,7 @@ async function collectCodeBuddy() {
     active,
     sessions,
     approvals: [],
-    extra: { source: 'presence' },
+    extra: { source: 'presence', mode },
   };
 }
 
@@ -445,6 +478,7 @@ function codexRolloutFile(sessionsDir, sessionId) {
 function analyzeRollout(lines) {
   let lastEvent = '';
   let turnContext = null;
+  let totalTokens = 0;
   const itemTail = [];
   for (const line of lines) {
     if (line.trim() === '') continue;
@@ -460,6 +494,12 @@ function analyzeRollout(lines) {
     }
     if (parsed.type === 'event_msg' && parsed.payload !== null && typeof parsed.payload === 'object') {
       if (typeof parsed.payload.type === 'string') lastEvent = parsed.payload.type;
+      if (parsed.payload.type === 'token_count') {
+        const usage = parsed.payload.info && parsed.payload.info.total_token_usage;
+        if (usage !== null && typeof usage === 'object' && typeof usage.total_tokens === 'number') {
+          totalTokens = usage.total_tokens;
+        }
+      }
       continue;
     }
     if (parsed.type === 'response_item' && parsed.payload !== null && typeof parsed.payload === 'object') {
@@ -476,6 +516,7 @@ function analyzeRollout(lines) {
     lastEvent,
     turnContext,
     pendingTool,
+    totalTokens,
     status: done ? 'idle' : (pendingTool || lastEvent === 'task_started' ? 'running' : 'idle'),
   };
 }
@@ -518,10 +559,12 @@ async function collectCodex() {
       lastActivityAt: mtimeMs(file),
       permissionMode: typeof context.approval_policy === 'string' ? context.approval_policy : '',
       unread: false,
+      tokens: analysis.totalTokens,
+      context: 0,
       kind: 'thread',
     };
     sessions.push(row);
-    if (active === null && (analysis.status === 'running' || (row.lastActivityAt > 0 && now - row.lastActivityAt < LIVE_FILE_MS))) {
+    if (active === null && (row.status === 'running' || (row.lastActivityAt > 0 && now - row.lastActivityAt < LIVE_FILE_MS))) {
       active = row;
     }
     // A function call with no output after it means the turn is waiting on the
@@ -694,10 +737,13 @@ async function collectDsh(ctx) {
         lastActivityAt: lastEventTime,
         permissionMode: '',
         unread: false,
+        tokens: 0,
+        context: 0,
         kind: 'session',
         parentSession: header && typeof header.parentSession === 'string' ? header.parentSession : '',
         agentPreset: header && typeof header.agentPreset === 'string' ? header.agentPreset : '',
         blank: seq <= 0,
+        pending: [],
       };
     });
   } catch {
@@ -706,6 +752,44 @@ async function collectDsh(ctx) {
 
   sessions.sort((a, b) => b.updatedAt - a.updatedAt);
   const visible = sessions.filter((row) => row.blank !== true);
+  const shown = visible.slice(0, 12);
+
+  // `sessionController.state` is the authoritative passive state: it tells us
+  // whether the agent is running and whether the session is waiting on an
+  // approval or a question. The turn boundary above is only the fallback.
+  const controller = typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined;
+  if (controller !== undefined && typeof controller.state === 'function') {
+    const signal = new AbortController().signal;
+    for (const row of shown) {
+      try {
+        const state = await controller.state({ sessionId: row.sessionId }, signal);
+        if (state !== null && typeof state === 'object') {
+          if (typeof state.running === 'boolean') row.status = state.running ? 'running' : 'idle';
+          if (Array.isArray(state.pendingInput)) {
+            for (const kind of state.pendingInput) {
+              if ((kind === 'approval' || kind === 'question') && !row.pending.includes(kind)) row.pending.push(kind);
+            }
+          }
+        }
+      } catch {
+        // Keep the turn-boundary fallback for this session.
+      }
+    }
+  }
+
+  const approvals = [];
+  for (const row of shown) {
+    for (const kind of row.pending) {
+      approvals.push({
+        id: `dsh:${row.sessionId}:${kind}`,
+        tool: kind,
+        reason: row.cwd !== '' ? row.cwd.split('/').pop() : '',
+        since: row.updatedAt,
+        sessionId: row.sessionId,
+      });
+    }
+  }
+
   const active = visible[0] || sessions[0] || null;
   const runningCount = visible.filter((row) => row.status === 'running').length;
 
@@ -716,8 +800,8 @@ async function collectDsh(ctx) {
     running: true,
     status: runningCount > 0 ? 'running' : 'idle',
     active,
-    sessions: visible.slice(0, 12),
-    approvals: [],
+    sessions: shown,
+    approvals,
     extra: { runningCount, sessionCount: visible.length, self: true },
   };
 }
@@ -781,6 +865,85 @@ async function collectSnapshot(ctx) {
 }
 
 /* ------------------------------------------------------------------ */
+/* activity feed                                                       */
+/* ------------------------------------------------------------------ */
+
+const MAX_ACTIVITY = 40;
+
+/**
+ * Compare two snapshots and describe what changed. The first comparison is
+ * skipped so a fresh start does not flood the feed with "new session" rows.
+ */
+function diffActivity(prev, next) {
+  const events = [];
+  const previousRuntimes = Array.isArray(prev.runtimes) ? prev.runtimes : [];
+  if (previousRuntimes.length === 0) return events;
+  const before = new Map(previousRuntimes.map((runtime) => [runtime.id, runtime]));
+
+  for (const runtime of next.runtimes) {
+    const earlier = before.get(runtime.id);
+    if (earlier === undefined) continue;
+
+    if (earlier.status !== runtime.status) {
+      events.push({
+        id: `${runtime.id}:status:${next.now}`,
+        at: next.now,
+        kind: 'status',
+        runtimeId: runtime.id,
+        runtimeName: runtime.name,
+        from: earlier.status,
+        to: runtime.status,
+      });
+    }
+
+    const earlierSessions = new Map(
+      (Array.isArray(earlier.sessions) ? earlier.sessions : []).map((session) => [session.sessionId, session]),
+    );
+    for (const session of Array.isArray(runtime.sessions) ? runtime.sessions : []) {
+      const beforeSession = earlierSessions.get(session.sessionId);
+      if (beforeSession === undefined) {
+        events.push({
+          id: `${runtime.id}:session:${session.sessionId}:${next.now}`,
+          at: next.now,
+          kind: 'session',
+          runtimeId: runtime.id,
+          runtimeName: runtime.name,
+          title: session.title || session.sessionId,
+        });
+      } else if (beforeSession.status !== session.status) {
+        events.push({
+          id: `${runtime.id}:session:${session.sessionId}:status:${next.now}`,
+          at: next.now,
+          kind: 'session-status',
+          runtimeId: runtime.id,
+          runtimeName: runtime.name,
+          title: session.title || session.sessionId,
+          from: beforeSession.status,
+          to: session.status,
+        });
+      }
+    }
+  }
+
+  const earlierApprovals = new Set(
+    (Array.isArray(prev.approvals) ? prev.approvals : []).map((approval) => approval.approvalId),
+  );
+  for (const approval of next.approvals) {
+    if (earlierApprovals.has(approval.approvalId)) continue;
+    events.push({
+      id: `approval:${approval.approvalId}:${next.now}`,
+      at: next.now,
+      kind: 'approval',
+      runtimeId: approval.runtimeId,
+      runtimeName: approval.runtimeName,
+      reason: approval.reason || approval.tool,
+    });
+  }
+
+  return events;
+}
+
+/* ------------------------------------------------------------------ */
 /* plugin                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -788,14 +951,22 @@ async function collectSnapshot(ctx) {
 export const inject = ['webServer', 'sessions', 'agents'];
 
 export function apply(ctx) {
-  let snapshot = { now: Date.now(), runtimes: [], approvals: [] };
+  let snapshot = { now: Date.now(), runtimes: [], approvals: [], activity: [] };
+  const activity = [];
   let collecting = false;
 
   const refresh = async () => {
     if (collecting) return;
     collecting = true;
     try {
-      snapshot = await collectSnapshot(ctx);
+      const next = await collectSnapshot(ctx);
+      const events = diffActivity(snapshot, next);
+      if (events.length > 0) {
+        activity.unshift(...events);
+        if (activity.length > MAX_ACTIVITY) activity.splice(MAX_ACTIVITY);
+      }
+      next.activity = activity.slice();
+      snapshot = next;
     } finally {
       collecting = false;
     }

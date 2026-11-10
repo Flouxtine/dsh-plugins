@@ -35,6 +35,9 @@ window.__ModuleLoader__.load({
         'header.runtimes': '{count} runtimes',
         'header.pending': '{count} pending',
         'approval.title': 'Needs your approval',
+        'activity.title': 'Recent activity',
+        'activity.empty': 'No activity recorded yet.',
+        'activity.newSession': 'new session',
         'approval.review': 'Review',
         'approval.dismiss': 'Dismiss',
         'approval.none': 'No pending approvals.',
@@ -44,6 +47,8 @@ window.__ModuleLoader__.load({
         'runtime.heartbeat': 'live',
         'runtime.noData': 'Process running — no readable session state.',
         'runtime.notInstalled': 'Not installed',
+        'tokens': 'Tokens',
+        'approval.pendingSession': 'DeepSeek Harness session',
         'status.running': 'Running',
         'status.idle': 'Idle',
         'status.waiting': 'Waiting',
@@ -86,6 +91,9 @@ window.__ModuleLoader__.load({
         'header.runtimes': '{count} 个运行时',
         'header.pending': '{count} 项待处理',
         'approval.title': '需要你审批',
+        'activity.title': '最近动态',
+        'activity.empty': '暂无动态。',
+        'activity.newSession': '新会话',
         'approval.review': '去处理',
         'approval.dismiss': '忽略',
         'approval.none': '暂无待审批事项。',
@@ -95,6 +103,8 @@ window.__ModuleLoader__.load({
         'runtime.heartbeat': '活跃',
         'runtime.noData': '进程运行中 — 暂无可读的会话状态。',
         'runtime.notInstalled': '未安装',
+        'tokens': '令牌',
+        'approval.pendingSession': 'DeepSeek Harness 会话',
         'status.running': '运行中',
         'status.idle': '空闲',
         'status.waiting': '等待中',
@@ -188,11 +198,17 @@ window.__ModuleLoader__.load({
 .ar-activeTitle { font-size: 12.5px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-activeMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; display: flex; gap: 8px; flex-wrap: wrap; }
 
-.ar-sessions { border-top: 1px solid var(--dsw-alias-border-l1); padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 2px; }
-.ar-session { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
+.ar-sessions { border-top: 1px solid var(--dsw-alias-border-l1); padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 2px; }.ar-session { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
 .ar-session:hover { background: var(--dsw-alias-bg-layer-2); }
 .ar-sessionTitle { flex: 1 1 auto; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-sessionMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; flex: none; }
+.ar-activity { border-top: 1px solid var(--dsw-alias-border-l1); margin-top: 2px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ar-sectionTitle { font-size: 12px; font-weight: 650; color: var(--dsw-alias-label-secondary); display: flex; align-items: center; gap: 6px; }
+.ar-activityList { display: flex; flex-direction: column; gap: 2px; }
+.ar-activityRow { display: flex; align-items: center; gap: 8px; padding: 3px 2px; border-radius: 5px; }
+.ar-activityRow:hover { background: var(--dsw-alias-bg-layer-2); }
+.ar-activityText { flex: 1 1 auto; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-activityTime { color: var(--dsw-alias-label-secondary); font-size: 11px; flex: none; }
 
 .ar-toastWrap { position: fixed; top: 18px; right: 18px; z-index: 9999; pointer-events: auto; }
 .ar-toast { width: 320px; border: 1px solid var(--dsw-alias-state-warn-primary); background: var(--dsw-alias-bg-overlay); color: var(--dsw-alias-label-primary); border-radius: 11px; padding: 11px 12px; box-shadow: 0 12px 34px rgba(0,0,0,0.28); }
@@ -426,6 +442,13 @@ window.__ModuleLoader__.load({
       return t('time.days', { count: Math.floor(hours / 24) });
     }
 
+    function formatTokens(count) {
+      if (typeof count !== 'number' || count <= 0) return '';
+      if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+      if (count >= 1000) return `${Math.round(count / 1000)}k`;
+      return String(count);
+    }
+
     function runtimeStatusKey(status) {
       if (status === 'working') return 'running';
       if (status === 'running' || status === 'waiting' || status === 'error' || status === 'absent' || status === 'stopped') return status;
@@ -481,30 +504,35 @@ window.__ModuleLoader__.load({
     }
 
     function ApprovalBanner(props) {
-      const { approvals, now, onReview, onDismiss } = props;
+      const { approvals, now, titleOf, onReview, onDismiss } = props;
       if (approvals.length === 0) return null;
       return h('div', { className: 'ar-approvals' }, [
         h('div', { className: 'ar-meta', key: 'head' }, `${t('approval.title')} · ${approvals.length}`),
-        approvals.map((row) => h('div', { className: 'ar-approval', key: row.approvalId }, [
-          h('div', { className: 'ar-approvalHead', key: 'head' }, [
-            h('span', { className: 'ar-approvalIcon', key: 'icon' }, '⚠'),
-            h('div', { className: 'ar-approvalText', key: 'text' }, [
-              h('div', { className: 'ar-approvalTitle', key: 'title' }, `${row.runtimeName} · ${row.tool}`),
-              h('div', { className: 'ar-approvalReason', key: 'reason', title: row.reason }, row.reason),
+        approvals.map((row) => {
+          const reason = row.runtimeId === 'dsh'
+            ? (titleOf(row.sessionId) || row.reason || t('approval.pendingSession'))
+            : row.reason;
+          return h('div', { className: 'ar-approval', key: row.approvalId }, [
+            h('div', { className: 'ar-approvalHead', key: 'head' }, [
+              h('span', { className: 'ar-approvalIcon', key: 'icon' }, '⚠'),
+              h('div', { className: 'ar-approvalText', key: 'text' }, [
+                h('div', { className: 'ar-approvalTitle', key: 'title' }, `${row.runtimeName} · ${row.tool}`),
+                h('div', { className: 'ar-approvalReason', key: 'reason', title: reason }, reason),
+              ]),
+              h('span', { className: 'ar-approvalTime', key: 'time' }, formatRelative(row.since, now)),
             ]),
-            h('span', { className: 'ar-approvalTime', key: 'time' }, formatRelative(row.since, now)),
-          ]),
-          h('div', { className: 'ar-approvalActions', key: 'actions' }, [
-            h('button', {
-              type: 'button', className: 'ar-btn ar-btn--primary', key: 'review',
-              onClick: () => onReview(row),
-            }, t('approval.review')),
-            h('button', {
-              type: 'button', className: 'ar-btn', key: 'dismiss',
-              onClick: () => onDismiss(row),
-            }, t('approval.dismiss')),
-          ]),
-        ])),
+            h('div', { className: 'ar-approvalActions', key: 'actions' }, [
+              h('button', {
+                type: 'button', className: 'ar-btn ar-btn--primary', key: 'review',
+                onClick: () => onReview(row),
+              }, t('approval.review')),
+              h('button', {
+                type: 'button', className: 'ar-btn', key: 'dismiss',
+                onClick: () => onDismiss(row),
+              }, t('approval.dismiss')),
+            ]),
+          ]);
+        }),
       ]);
     }
 
@@ -515,6 +543,7 @@ window.__ModuleLoader__.load({
       const approvals = Array.isArray(runtime.approvals) ? runtime.approvals : [];
       const active = runtime.active !== null && typeof runtime.active === 'object' ? runtime.active : null;
       const notInstalled = runtime.installed !== true;
+      const mode = runtime.extra !== null && typeof runtime.extra === 'object' && typeof runtime.extra.mode === 'string' ? runtime.extra.mode : '';
 
       const head = h('div', {
         className: 'ar-runtimeHead', onClick: () => onToggle(runtime.id),
@@ -526,7 +555,9 @@ window.__ModuleLoader__.load({
         h('div', { key: 'names' }, [
           h('div', { className: 'ar-runtimeName', key: 'name' }, runtime.name),
           h('div', { className: 'ar-runtimeState', key: 'state' },
-            notInstalled ? t('runtime.notInstalled') : (active !== null ? shortTitle(active.title, runtime.id) : t('runtime.noData'))),
+            notInstalled
+              ? t('runtime.notInstalled')
+              : (active !== null ? shortTitle(active.title, runtime.id) : (mode !== '' ? mode : t('runtime.noData')))),
         ]),
         h('div', { className: 'ar-runtimeRight', key: 'right' }, [
           approvals.length > 0 ? h('span', { className: 'ar-count', key: 'count' }, String(approvals.length)) : null,
@@ -543,6 +574,8 @@ window.__ModuleLoader__.load({
       if (active !== null) {
         const meta = [];
         if (active.model !== '') meta.push(h('span', { key: 'model' }, active.model));
+        const activeTokens = formatTokens(active.tokens);
+        if (activeTokens !== '') meta.push(h('span', { key: 'tokens' }, `${t('tokens')} ${activeTokens}`));
         if (active.cwd !== '') meta.push(h('span', { key: 'cwd' }, active.cwd));
         const when = formatRelative(active.lastActivityAt || active.updatedAt, now);
         if (when !== '') meta.push(h('span', { key: 'time' }, when));
@@ -557,6 +590,8 @@ window.__ModuleLoader__.load({
           const title = shortTitle(sessionTitle(session.sessionId), session.title);
           const meta = [];
           if (session.model !== '') meta.push(h('span', { key: 'model' }, session.model));
+          const sessionTokens = formatTokens(session.tokens);
+          if (sessionTokens !== '') meta.push(h('span', { key: 'tokens' }, `${t('tokens')} ${sessionTokens}`));
           const when = formatRelative(session.lastActivityAt || session.updatedAt, now);
           if (when !== '') meta.push(h('span', { key: 'time' }, when));
           return h('div', {
@@ -585,6 +620,33 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', { className: `ar-runtime ar-runtime--${status}` }, [head, ...body]);
+    }
+
+    function ActivityFeed(props) {
+      const { events, now } = props;
+      const list = (Array.isArray(events) ? events : []).slice(0, 8);
+      return h('div', { className: 'ar-activity' }, [
+        h('div', { className: 'ar-sectionTitle', key: 'title' }, [
+          t('activity.title'),
+          list.length > 0 ? h('span', { className: 'ar-meta', key: 'count' }, String(list.length)) : null,
+        ]),
+        list.length === 0
+          ? h('div', { className: 'ar-meta', key: 'empty' }, t('activity.empty'))
+          : h('div', { className: 'ar-activityList', key: 'list' }, list.map((event) => {
+              const text = event.kind === 'status'
+                ? `${event.runtimeName} ${t(`status.${runtimeStatusKey(event.from)}`)} → ${t(`status.${runtimeStatusKey(event.to)}`)}`
+                : event.kind === 'session'
+                  ? `${event.runtimeName} · ${t('activity.newSession')} ${event.title}`
+                  : event.kind === 'session-status'
+                    ? `${event.title} ${t(`status.${runtimeStatusKey(event.from)}`)} → ${t(`status.${runtimeStatusKey(event.to)}`)}`
+                    : `${event.runtimeName} · ${t('approval.title')} ${event.reason}`;
+              return h('div', { className: 'ar-activityRow', key: event.id, title: text }, [
+                h('span', { className: `ar-dot ar-dot--${event.kind === 'approval' ? 'waiting' : 'idle'}`, key: 'dot' }),
+                h('span', { className: 'ar-activityText', key: 'text' }, text),
+                h('span', { className: 'ar-activityTime', key: 'time' }, formatRelative(event.at, now)),
+              ]);
+            })),
+      ]);
     }
 
     function ConsolePanel(props) {
@@ -692,7 +754,7 @@ window.__ModuleLoader__.load({
         ]),
         h('div', { className: 'ar-scroll', key: 'scroll' }, [
           h(ApprovalBanner, {
-            key: 'approvals', approvals, now,
+            key: 'approvals', approvals, now, titleOf,
             onReview: (row) => { void review(row); },
             onDismiss: (row) => storeState.dismiss(row.approvalId),
           }),
@@ -726,6 +788,11 @@ window.__ModuleLoader__.load({
                 ]),
               ])),
             ],
+          h(ActivityFeed, {
+            key: 'activity',
+            events: Array.isArray(storeState.snapshot.activity) ? storeState.snapshot.activity : [],
+            now,
+          }),
         ]),
       ]);
     }
