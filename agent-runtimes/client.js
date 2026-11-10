@@ -36,6 +36,9 @@ window.__ModuleLoader__.load({
         'header.offline': 'offline',
         'header.runtimes': '{count} runtimes',
         'header.pending': '{count} pending',
+        'stats.running': 'Running',
+        'stats.pending': 'Pending',
+        'stats.sessions': 'Sessions',
         'approval.title': 'Needs your approval',
         'activity.title': 'Recent activity',
         'activity.empty': 'No activity recorded yet.',
@@ -100,6 +103,9 @@ window.__ModuleLoader__.load({
         'header.offline': '离线',
         'header.runtimes': '{count} 个运行时',
         'header.pending': '{count} 项待处理',
+        'stats.running': '运行中',
+        'stats.pending': '待处理',
+        'stats.sessions': '会话',
         'approval.title': '需要你审批',
         'activity.title': '最近动态',
         'activity.empty': '暂无动态。',
@@ -190,18 +196,29 @@ window.__ModuleLoader__.load({
 .ar-approvalTime { color: var(--dsw-alias-label-secondary); font-size: 11.5px; flex: none; }
 .ar-approvalActions { display: flex; gap: 6px; margin-top: 8px; }
 
-.ar-runtime { border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); overflow: hidden; }
-.ar-runtime--absent { opacity: 0.55; }
-.ar-runtime--error { border-color: var(--dsw-alias-state-error-primary); }
-.ar-runtimeHead { display: flex; align-items: center; gap: 9px; padding: 9px 11px; cursor: pointer; min-width: 0; }
-.ar-runtimeHead:hover { background: var(--dsw-alias-bg-layer-2); }
+.ar-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ar-stat { border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px; background: var(--dsw-alias-bg-layer-1); padding: 7px 10px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ar-statLabel { color: var(--dsw-alias-label-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-statValue { font-size: 17px; font-weight: 650; line-height: 1.2; }
+.ar-statValue--ok { color: var(--dsw-alias-state-success-primary); }
+.ar-statValue--warn { color: var(--dsw-alias-state-warn-primary); }
+
+.ar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; align-items: start; }
+.ar-card { border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.ar-card--absent { opacity: 0.55; }
+.ar-card--error { border-color: var(--dsw-alias-state-error-primary); }
+.ar-card--waiting { border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 55%, var(--dsw-alias-border-l1)); }
+.ar-cardHead { display: flex; align-items: center; gap: 8px; padding: 9px 10px 0; min-width: 0; }
 .ar-badge { width: 22px; height: 22px; border-radius: 6px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; }
-.ar-runtimeNames { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
-.ar-runtimeName { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ar-runtimeState { color: var(--dsw-alias-label-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ar-runtimeRight { margin-left: auto; display: flex; align-items: center; gap: 6px; flex: none; }
-.ar-chevron { color: var(--dsw-alias-label-secondary); font-size: 11px; transition: transform 0.12s ease; }
-.ar-chevron--open { transform: rotate(90deg); }
+.ar-cardName { font-weight: 600; font-size: 13px; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-cardBody { padding: 7px 10px 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ar-cardTitle { font-size: 13px; font-weight: 550; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ar-cardMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; display: flex; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.ar-cardMeta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ar-cardFoot { display: flex; align-items: center; gap: 2px; padding: 0 6px 7px; min-width: 0; }
+.ar-spacer { flex: 1 1 auto; }
+.ar-linkBtn { appearance: none; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 11.5px; cursor: pointer; padding: 3px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.ar-linkBtn:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
 
 .ar-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
 .ar-dot--running { background: var(--dsw-alias-state-success-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 18%, transparent); }
@@ -216,16 +233,13 @@ window.__ModuleLoader__.load({
 .ar-pill--waiting { color: var(--dsw-alias-state-warn-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 45%, transparent); }
 .ar-pill--error { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent); }
 .ar-pill--stopped { color: var(--dsw-alias-label-secondary); border-color: var(--dsw-alias-border-l1); }
-.ar-count { font-size: 11px; font-weight: 650; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px; background: var(--dsw-alias-state-warn-primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.ar-count { font-size: 10.5px; font-weight: 650; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px; background: var(--dsw-alias-state-warn-primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
 
-.ar-active { padding: 0 11px 9px; display: flex; flex-direction: column; gap: 3px; }
-.ar-activeTitle { font-size: 12.5px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ar-activeMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; display: flex; gap: 8px; flex-wrap: wrap; }
-
-.ar-sessions { border-top: 1px solid var(--dsw-alias-border-l1); padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 2px; }.ar-session { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
+.ar-sessions { border-top: 1px solid var(--dsw-alias-border-l1); padding: 5px 6px 7px; display: flex; flex-direction: column; gap: 1px; max-height: 240px; overflow-y: auto; }
+.ar-session { display: flex; align-items: center; gap: 7px; padding: 4px 6px; border-radius: 5px; cursor: pointer; min-width: 0; }
 .ar-session:hover { background: var(--dsw-alias-bg-layer-2); }
-.ar-sessionTitle { flex: 1 1 auto; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ar-sessionMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; flex: none; }
+.ar-sessionTitle { flex: 1 1 auto; min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-sessionMeta { color: var(--dsw-alias-label-secondary); font-size: 11px; flex: none; }
 .ar-activity { border-top: 1px solid var(--dsw-alias-border-l1); margin-top: 2px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .ar-sectionTitle { font-size: 12px; font-weight: 650; color: var(--dsw-alias-label-secondary); display: flex; align-items: center; gap: 6px; }
 .ar-activityList { display: flex; flex-direction: column; gap: 2px; }
@@ -242,8 +256,6 @@ window.__ModuleLoader__.load({
 .ar-toastActions { display: flex; gap: 6px; margin-top: 9px; }
 .ar-toastClose { margin-left: auto; }
 
-.ar-iconWrap { position: relative; display: inline-flex; }
-.ar-iconBadge { position: absolute; top: -5px; right: -7px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 999px; background: var(--dsw-alias-state-warn-primary); color: #fff; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 `;
 
     const TOAST_CSS = `
@@ -601,80 +613,82 @@ window.__ModuleLoader__.load({
       const notInstalled = runtime.installed !== true;
       const mode = runtime.extra !== null && typeof runtime.extra === 'object' && typeof runtime.extra.mode === 'string' ? runtime.extra.mode : '';
 
-      const head = h('div', {
-        className: 'ar-runtimeHead', onClick: () => onToggle(runtime.id),
-        role: 'button', tabIndex: 0,
-        onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') onToggle(runtime.id); },
-      }, [
-        h(RuntimeBadge, { runtimeId: runtime.id, key: 'badge' }),
-        h('div', { className: 'ar-runtimeNames', key: 'names' }, [
-          h('div', { className: 'ar-runtimeName', key: 'name' }, runtime.name),
-          h('div', { className: 'ar-runtimeState', key: 'state' },
-            notInstalled
-              ? t('runtime.notInstalled')
-              : (active !== null ? shortTitle(active.title, runtime.id) : (mode !== '' ? mode : t('runtime.noData')))),
-        ]),
-        h('div', { className: 'ar-runtimeRight', key: 'right' }, [
-          approvals.length > 0 ? h('span', { className: 'ar-count', key: 'count' }, String(approvals.length)) : null,
-          h(Pill, { status, key: 'pill' }),
-          h('span', { className: `ar-chevron${expanded ? ' ar-chevron--open' : ''}`, key: 'chevron' }, '›'),
-        ]),
-      ]);
-
-      if (notInstalled) {
-        return h('div', { className: 'ar-runtime ar-runtime--absent' }, [head]);
-      }
-
-      const body = [];
+      const meta = [];
       if (active !== null) {
-        const meta = [];
-        if (active.model !== '') meta.push(h('span', { key: 'model' }, active.model));
-        const activeTokens = formatTokens(active.tokens);
-        if (activeTokens !== '') meta.push(h('span', { key: 'tokens' }, `${t('tokens')} ${activeTokens}`));
-        if (active.cwd !== '') meta.push(h('span', { key: 'cwd' }, active.cwd));
+        if (active.model !== '') meta.push(active.model);
+        const tokens = formatTokens(active.tokens);
+        if (tokens !== '') meta.push(`${t('tokens')} ${tokens}`);
+        if (active.cwd !== '') meta.push(active.cwd);
         const when = formatRelative(active.lastActivityAt || active.updatedAt, now);
-        if (when !== '') meta.push(h('span', { key: 'time' }, when));
-        body.push(h('div', { className: 'ar-active', key: 'active' }, [
-          h('div', { className: 'ar-activeTitle', key: 'title', title: active.title }, shortTitle(active.title, runtime.id)),
-          meta.length > 0 ? h('div', { className: 'ar-activeMeta', key: 'meta' }, meta) : null,
-        ]));
+        if (when !== '') meta.push(when);
       }
 
-      if (expanded) {
-        const rows = sessions.slice(0, 8).map((session) => {
+      const rows = expanded
+        ? sessions.slice(0, 8).map((session) => {
           const title = shortTitle(sessionTitle(session.sessionId), session.title);
-          const meta = [];
-          if (session.model !== '') meta.push(h('span', { key: 'model' }, session.model));
-          const sessionTokens = formatTokens(session.tokens);
-          if (sessionTokens !== '') meta.push(h('span', { key: 'tokens' }, `${t('tokens')} ${sessionTokens}`));
           const when = formatRelative(session.lastActivityAt || session.updatedAt, now);
-          if (when !== '') meta.push(h('span', { key: 'time' }, when));
           return h('div', {
             className: 'ar-session', key: session.sessionId, title,
             onClick: () => onOpen(runtime, session),
           }, [
             h(StatusDot, { status: sessionStatusKey(session.status), key: 'dot' }),
             h('span', { className: 'ar-sessionTitle', key: 'title' }, title),
-            meta.length > 0 ? h('span', { className: 'ar-sessionMeta', key: 'meta' }, meta) : null,
+            when !== '' ? h('span', { className: 'ar-sessionMeta', key: 'meta' }, when) : null,
             runtime.id === 'dsh'
               ? h('button', {
-                  type: 'button', className: 'ar-btn ar-btn--icon', key: 'stop',
-                  title: t('runtime.interrupt'),
-                  onClick: (event) => {
-                    event.stopPropagation();
-                    onInterrupt(runtime, session);
-                  },
-                }, '■')
+                type: 'button', className: 'ar-linkBtn', key: 'stop',
+                title: t('runtime.interrupt'),
+                onClick: (event) => { event.stopPropagation(); onInterrupt(runtime, session); },
+              }, '■')
               : null,
           ]);
-        });
-        if (rows.length === 0) {
-          rows.push(h('div', { className: 'ar-meta', key: 'none' }, t('runtime.noData')));
-        }
-        body.push(h('div', { className: 'ar-sessions', key: 'sessions' }, rows));
-      }
+        })
+        : [];
 
-      return h('div', { className: `ar-runtime ar-runtime--${status}` }, [head, ...body]);
+      return h('div', { className: `ar-card ar-card--${status}` }, [
+        h('div', { className: 'ar-cardHead', key: 'head' }, [
+          h(RuntimeBadge, { runtimeId: runtime.id, key: 'badge' }),
+          h('span', { className: 'ar-cardName', key: 'name' }, runtime.name),
+          approvals.length > 0 ? h('span', { className: 'ar-count', key: 'count' }, String(approvals.length)) : null,
+          h(Pill, { status, key: 'pill' }),
+        ]),
+        h('div', { className: 'ar-cardBody', key: 'body' }, [
+          h('div', { className: 'ar-cardTitle', key: 'title' },
+            notInstalled
+              ? t('runtime.notInstalled')
+              : (active !== null ? shortTitle(active.title, runtime.id) : (mode !== '' ? mode : t('runtime.noData')))),
+          meta.length > 0
+            ? h('div', { className: 'ar-cardMeta', key: 'meta' }, meta.map((item, index) => h('span', { key: index }, item)))
+            : null,
+        ]),
+        notInstalled
+          ? null
+          : h('div', { className: 'ar-cardFoot', key: 'foot' }, [
+            sessions.length > 0
+              ? h('button', {
+                type: 'button', className: 'ar-linkBtn', key: 'toggle',
+                onClick: () => onToggle(runtime.id),
+              }, [
+                h('span', { className: `ar-chevron${expanded ? ' ar-chevron--open' : ''}`, key: 'chevron' }, '›'),
+                h('span', { key: 'label' }, t('runtime.sessions', { count: sessions.length })),
+              ])
+              : null,
+            h('span', { className: 'ar-spacer', key: 'spacer' }),
+            active !== null && active.sessionId
+              ? h('button', {
+                type: 'button', className: 'ar-linkBtn', key: 'open',
+                onClick: () => onOpen(runtime, null),
+              }, t('runtime.open'))
+              : null,
+            runtime.id === 'dsh' && active !== null && active.sessionId
+              ? h('button', {
+                type: 'button', className: 'ar-linkBtn', key: 'stop',
+                onClick: () => onInterrupt(runtime, { sessionId: active.sessionId }),
+              }, t('runtime.interrupt'))
+              : null,
+          ]),
+        rows.length > 0 ? h('div', { className: 'ar-sessions', key: 'sessions' }, rows) : null,
+      ]);
     }
 
     function ActivityFeed(props) {
@@ -721,6 +735,8 @@ window.__ModuleLoader__.load({
         return rank(a) - rank(b);
       });
       const snapshotAge = now - (storeState.snapshot.now || 0);
+      const runningCount = installed.filter((runtime) => runtime.status === 'running' || runtime.status === 'waiting').length;
+      const sessionCount = installed.reduce((total, runtime) => total + (Array.isArray(runtime.sessions) ? runtime.sessions.length : 0), 0);
 
       const sessionTitles = useMemo(() => {
         const map = new Map();
@@ -829,6 +845,20 @@ window.__ModuleLoader__.load({
           storeState.message !== null
             ? h('div', { className: 'ar-message', key: 'message' }, storeState.message)
             : null,
+          h('div', { className: 'ar-stats', key: 'stats' }, [
+            h('div', { className: 'ar-stat', key: 'running' }, [
+              h('div', { className: 'ar-statLabel', key: 'label' }, t('stats.running')),
+              h('div', { className: 'ar-statValue ar-statValue--ok', key: 'value' }, String(runningCount)),
+            ]),
+            h('div', { className: 'ar-stat', key: 'pending' }, [
+              h('div', { className: 'ar-statLabel', key: 'label' }, t('stats.pending')),
+              h('div', { className: `ar-statValue${approvals.length > 0 ? ' ar-statValue--warn' : ''}`, key: 'value' }, String(approvals.length)),
+            ]),
+            h('div', { className: 'ar-stat', key: 'sessions' }, [
+              h('div', { className: 'ar-statLabel', key: 'label' }, t('stats.sessions')),
+              h('div', { className: 'ar-statValue', key: 'value' }, String(sessionCount)),
+            ]),
+          ]),
           h(ApprovalBanner, {
             key: 'approvals', approvals, now, titleOf,
             onReview: (row) => { void review(row); },
@@ -840,7 +870,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'ar-emptyTitle', key: 'title' }, t('empty.title')),
               h('div', { key: 'body' }, t('empty.body')),
             ])
-            : [
+            : h('div', { className: 'ar-grid', key: 'grid' }, [
               ...ordered.map((runtime) => h(RuntimeCard, {
                 key: runtime.id, runtime, now,
                 expanded: expanded[runtime.id] === true,
@@ -849,21 +879,15 @@ window.__ModuleLoader__.load({
                 onOpen: (target, session) => { void open(target, session); },
                 onInterrupt: (target, session) => { void interrupt(target, session); },
               })),
-              ...absent.map((runtime) => h('div', {
-                className: 'ar-runtime ar-runtime--absent', key: runtime.id,
-              }, [
-                h('div', { className: 'ar-runtimeHead' }, [
-                  h(RuntimeBadge, { runtimeId: runtime.id, key: 'badge' }),
-                  h('div', { className: 'ar-runtimeNames', key: 'names' }, [
-                    h('div', { className: 'ar-runtimeName', key: 'name' }, runtime.name),
-                    h('div', { className: 'ar-runtimeState', key: 'state' }, t('runtime.notInstalled')),
-                  ]),
-                  h('div', { className: 'ar-runtimeRight', key: 'right' }, [
-                    h(Pill, { status: 'absent', key: 'pill' }),
-                  ]),
-                ]),
-              ])),
-            ],
+              ...absent.map((runtime) => h(RuntimeCard, {
+                key: runtime.id, runtime, now,
+                expanded: false,
+                sessionTitle: titleOf,
+                onToggle: () => {},
+                onOpen: () => {},
+                onInterrupt: () => {},
+              })),
+            ]),
           h(ActivityFeed, {
             key: 'activity',
             events: Array.isArray(storeState.snapshot.activity) ? storeState.snapshot.activity : [],
