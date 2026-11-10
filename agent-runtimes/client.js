@@ -85,6 +85,14 @@ window.__ModuleLoader__.load({
         'credentials.remove': 'Delete',
         'credentials.required': 'Name and API key are both required.',
         'credentials.failed': 'Could not save the credential.',
+        'names.nav': 'Agent names',
+        'names.title': 'Agent names',
+        'names.hint': 'Give each runtime your own name; the console and the credential page use it. Leave the field empty to restore the default.',
+        'names.save': 'Save',
+        'names.saved': 'Saved.',
+        'names.failed': 'Could not save the name.',
+        'names.aliased': 'default: {builtin}',
+        'credentials.agentPlaceholder': 'Pick a runtime or type a custom name',
         'session.running': 'Running',
         'session.idle': 'Idle',
         'session.working': 'Working',
@@ -176,6 +184,14 @@ window.__ModuleLoader__.load({
         'credentials.remove': '删除',
         'credentials.required': '名称和 API Key 都是必填。',
         'credentials.failed': '保存凭证失败。',
+        'names.nav': 'Agent 名称',
+        'names.title': 'Agent 名称',
+        'names.hint': '给每个运行时起一个自己的名字，看板和凭据页都会用它。留空则恢复默认。',
+        'names.save': '保存',
+        'names.saved': '已保存。',
+        'names.failed': '保存名称失败。',
+        'names.aliased': '默认：{builtin}',
+        'credentials.agentPlaceholder': '选一个运行时，或直接输入自定义名称',
         'session.running': '运行中',
         'session.idle': '空闲',
         'session.working': '工作中',
@@ -808,7 +824,87 @@ window.__ModuleLoader__.load({
 .ar-crName { font-weight: 600; font-size: 13px; }
 .ar-crMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-crRowMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; flex: none; }
+.ar-crInlineInput { margin-top: 6px; width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; padding: 5px 8px; outline: none; }
+.ar-crInlineInput:focus { border-color: var(--dsw-alias-brand-primary); }
 `;
+
+    function AgentNamesSection() {
+      const [state, setState] = useState({ loading: true, runtimes: [], names: {}, notice: '' });
+      const [drafts, setDrafts] = useState({});
+
+      const reload = async () => {
+        try {
+          const response = await fetch(`${API}/snapshot`, { cache: 'no-store' });
+          const data = await response.json();
+          setState({
+            loading: false,
+            runtimes: Array.isArray(data.runtimes) ? data.runtimes : [],
+            names: data.names !== null && typeof data.names === 'object' ? data.names : {},
+            notice: '',
+          });
+        } catch (error) {
+          setState({ loading: false, runtimes: [], names: {}, notice: String(error) });
+        }
+      };
+
+      useEffect(() => { void reload(); }, []);
+
+      const save = async (runtimeId) => {
+        const value = drafts[runtimeId] !== undefined ? drafts[runtimeId] : (state.names[runtimeId] || '');
+        try {
+          const response = await fetch(`${API}/action`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'setName', runtimeId, name: value }),
+          });
+          const result = await response.json();
+          if (result.ok !== true) {
+            setState({ ...state, notice: t('names.failed') });
+            return;
+          }
+          setDrafts({ ...drafts, [runtimeId]: undefined });
+          setState({ ...state, notice: t('names.saved') });
+          await reload();
+        } catch (error) {
+          setState({ ...state, notice: String(error) });
+        }
+      };
+
+      return h('div', { className: 'ar-cr' }, [
+        h('style', { dangerouslySetInnerHTML: { __html: CREDENTIALS_CSS }, key: 'style' }),
+        h('div', { className: 'ar-crHead', key: 'head' }, [
+          h('div', { key: 'text' }, [
+            h('div', { className: 'ar-crTitle', key: 'title' }, t('names.title')),
+            h('div', { className: 'ar-crHint', key: 'hint' }, t('names.hint')),
+          ]),
+        ]),
+        state.notice !== '' ? h('div', { className: 'ar-crNotice', key: 'notice' }, state.notice) : null,
+        state.loading
+          ? h('div', { className: 'ar-crEmpty', key: 'loading' }, t('credentials.loading'))
+          : h('div', { className: 'ar-crList', key: 'list' }, state.runtimes.map((runtime) => {
+            const alias = state.names[runtime.id] || '';
+            const value = drafts[runtime.id] !== undefined ? drafts[runtime.id] : alias;
+            return h('div', { className: 'ar-crRow', key: runtime.id }, [
+              h('div', { className: 'ar-crRowMain', key: 'main' }, [
+                h('div', { className: 'ar-crName', key: 'name' }, runtime.name),
+                h('div', { className: 'ar-crMeta', key: 'meta' },
+                  alias !== '' ? t('names.aliased', { builtin: runtime.builtinName || runtime.id }) : (runtime.builtinName || runtime.id)),
+                h('input', {
+                  key: 'input',
+                  className: 'ar-crInlineInput',
+                  value: value === undefined ? '' : value,
+                  placeholder: runtime.builtinName || runtime.id,
+                  onChange: (event) => setDrafts({ ...drafts, [runtime.id]: event.target.value }),
+                }),
+              ]),
+              h('button', {
+                type: 'button', className: 'ar-btn ar-btn--primary', key: 'save',
+                onClick: () => { void save(runtime.id); },
+              }, t('names.save')),
+            ]);
+          })),
+      ]);
+    }
 
     function CredentialsSection() {
       const [state, setState] = useState({ loading: true, items: [], error: '', notice: '' });
@@ -898,11 +994,15 @@ window.__ModuleLoader__.load({
           field('name', 'credentials.name', 'credentials.namePlaceholder', draft.name, (value) => setDraft({ ...draft, name: value })),
           h('label', { className: 'ar-crField', key: 'agent' }, [
             h('span', { key: 'label' }, t('credentials.agent')),
-            h('select', {
-              key: 'select',
+            h('input', {
+              key: 'input',
+              list: 'agent-runtimes-agent-options',
               value: draft.agent,
+              placeholder: t('credentials.agentPlaceholder'),
               onChange: (event) => setDraft({ ...draft, agent: event.target.value }),
-            }, RUNTIME_OPTIONS.map((option) => h('option', { value: option.id, key: option.id }, option.name))),
+            }),
+            h('datalist', { id: 'agent-runtimes-agent-options', key: 'datalist' },
+              RUNTIME_OPTIONS.map((option) => h('option', { value: option.id, key: option.id }, option.name))),
           ]),
           field('purpose', 'credentials.purpose', 'credentials.purposePlaceholder', draft.purpose, (value) => setDraft({ ...draft, purpose: value })),
           field('secret', 'credentials.secret', 'credentials.secretPlaceholder', draft.secret, (value) => setDraft({ ...draft, secret: value }), 'password'),
@@ -1201,6 +1301,11 @@ window.__ModuleLoader__.load({
           name: 'shell.overlay', id: 'agent-runtimes.reminder', order: 90,
           label: () => t('panel'),
         }, ReminderToast));
+
+        ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section', id: 'agent-runtimes-names', order: 24, locale: NS,
+          label: () => t('names.nav'),
+        }, AgentNamesSection));
 
         ctx.slots.inject('settings.section', () => ctx.slots.register({
           name: 'settings.section', id: 'agent-runtimes-credentials', order: 25, locale: NS,

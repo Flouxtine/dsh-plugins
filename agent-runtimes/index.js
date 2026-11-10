@@ -1240,9 +1240,19 @@ function credentialPayloadOf(record) {
 export function apply(ctx) {
   const settings = readSettings();
   let intercept = settings.intercept === true;
+  const names = settings.names !== null && typeof settings.names === 'object' ? { ...settings.names } : {};
   const decisions = new Map();
 
-  let snapshot = { now: Date.now(), runtimes: [], approvals: [], activity: [], intercept };
+  let snapshot = { now: Date.now(), runtimes: [], approvals: [], activity: [], intercept, names };
+
+  const setName = (runtimeId, name) => {
+    if (typeof runtimeId !== 'string' || runtimeId === '') return;
+    const trimmed = String(name === undefined || name === null ? '' : name).trim();
+    if (trimmed === '') delete names[runtimeId];
+    else names[runtimeId] = trimmed.slice(0, 40);
+    writeSettings({ ...readSettings(), intercept, names });
+    void refresh();
+  };
   const activity = [];
   let collecting = false;
 
@@ -1347,7 +1357,14 @@ export function apply(ctx) {
         });
         if (dsh !== undefined) dsh.approvals.push(approval);
       }
+      // A user-assigned display name wins over the built-in label.
+      for (const runtime of next.runtimes) {
+        runtime.builtinName = runtime.name;
+        const alias = names[runtime.id];
+        if (typeof alias === 'string' && alias !== '') runtime.name = alias;
+      }
       next.intercept = intercept;
+      next.names = { ...names };
       const accessibility = await probeAccessibility(next.now);
       next.accessibility = accessibility;
       for (const approval of next.approvals) {
@@ -1418,6 +1435,11 @@ export function apply(ctx) {
           const runtimeId = typeof parsed.runtimeId === 'string' ? parsed.runtimeId : '';
           const sessionId = typeof parsed.sessionId === 'string' ? parsed.sessionId : '';
 
+          if (action === 'setName') {
+            setName(parsed.runtimeId, parsed.name);
+            reply(200, { ok: true, names: { ...names } });
+            return;
+          }
           if (action === 'setIntercept') {
             setIntercept(parsed.enabled === true);
             reply(200, { ok: true, intercept });

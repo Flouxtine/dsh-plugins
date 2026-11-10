@@ -24,6 +24,11 @@ One console for the mainstream agent runtimes on your machine, built as a
   System Settings → Privacy & Security and the approval card offers
   **允许一次 / 拒绝** for those runtimes too; without the permission it says so
   and offers "jump to the app".
+- **Custom names** — a "Agent 名称" page in Settings renames each runtime; the
+  alias is used on the board, in the credential page and in the approval cards,
+  and an empty field restores the built-in label. Names persist in
+  `~/.dsh/agent-runtimes-settings.json`; the credential page's Agent field also
+  accepts any custom text, not just the built-in runtimes.
 - **Recent activity** — a cross-runtime feed of what just changed: runtime
   status transitions, new sessions, session status changes and newly raised
   approvals.
