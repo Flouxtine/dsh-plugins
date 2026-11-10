@@ -43,6 +43,9 @@ const OPEN = '/usr/bin/open';
 const DATA_DIR = process.env.DSH_HOME || join(HOME, '.dsh');
 const SETTINGS_PATH = join(DATA_DIR, 'agent-runtimes-settings.json');
 const DECISION_TIMEOUT_MS = 5 * 60 * 1000;
+const RECENT_ACTIVITY_MS = 10 * 60 * 1000;
+const TODO_ACTIVE_MS = 30 * 60 * 1000;
+const STATUS_DEBOUNCE_MS = 30 * 1000;
 
 /* ------------------------------------------------------------------ */
 /* small helpers                                                       */
@@ -308,9 +311,10 @@ async function collectWorkBuddy() {
     kind: 'session',
   })).filter((row) => row.sessionId !== '');
 
-  const active = (heartbeat !== null && rows.find((row) => row.sessionId === heartbeat.sessionId))
-    || rows.find((row) => row.status === 'working')
-    || rows[0]
+  // Only a session the app itself calls active counts as the current one; a
+  // recently finished session must not be presented as "now".
+  const active = rows.find((row) => row.status === 'working')
+    || rows.find((row) => row.status === 'pending')
     || null;
 
   // A WorkBuddy session in `pending` is waiting on the user (the agent asked a
@@ -379,6 +383,7 @@ function codeBuddyPaths() {
     genie: join(extension, 'genie-history'),
     queue: join(extension, 'message-queue'),
     edits: join(extension, 'edit-sessions'),
+    todos: join(extension, 'todos'),
   };
 }
 
@@ -462,26 +467,51 @@ async function collectCodeBuddy() {
     touch(id, { updatedAt: mtimeMs(join(paths.edits, file)) });
   }
 
+  // todos/<conversationId>.json is the agent's own task list; an in_progress
+  // entry is the most stable "this agent is working" signal CodeBuddy exposes.
+  const todosById = new Map();
+  for (const id of conversations.keys()) {
+    const parsed = readJsonFile(join(paths.todos, `${id}.json`));
+    const list = parsed !== null && Array.isArray(parsed.todos) ? parsed.todos : [];
+    if (list.length === 0) continue;
+    let done = 0;
+    let inProgress = 0;
+    for (const item of list) {
+      if (item.status === 'completed') done += 1;
+      else if (item.status === 'in_progress') inProgress += 1;
+    }
+    todosById.set(id, {
+      done,
+      total: list.length,
+      inProgress,
+      updatedAt: typeof parsed.updatedAt === 'number' ? parsed.updatedAt : 0,
+    });
+  }
+
   const sessions = [];
   for (const entry of conversations.values()) {
+    const todo = todosById.get(entry.id) || null;
+    const updatedAt = Math.max(entry.updatedAt, todo !== null ? todo.updatedAt : 0);
     const lastItem = entry.items.length > 0 ? entry.items[entry.items.length - 1] : null;
     const preview = lastItem !== null && typeof lastItem.previewText === 'string' ? lastItem.previewText.trim() : '';
     const placeholder = entry.cwd !== '' ? entry.cwd.split('/').pop() : `Conversation ${entry.id.slice(0, 8)}`;
     const rawTitle = preview !== '' ? preview : placeholder;
-    const active = entry.updatedAt > 0 && now - entry.updatedAt < LIVE_FILE_MS;
+    const workingOnTodos = todo !== null && todo.inProgress > 0 && now - todo.updatedAt < TODO_ACTIVE_MS;
+    const recentlyActive = updatedAt > 0 && now - updatedAt < RECENT_ACTIVITY_MS;
     sessions.push({
       sessionId: entry.id,
       title: rawTitle.length > 80 ? `${rawTitle.slice(0, 77)}\u2026` : rawTitle,
-      status: active ? 'running' : 'idle',
+      status: (workingOnTodos || recentlyActive) ? 'running' : 'idle',
       model: entry.model,
       cwd: entry.cwd,
-      updatedAt: entry.updatedAt,
-      lastActivityAt: entry.updatedAt,
+      updatedAt,
+      lastActivityAt: updatedAt,
       permissionMode: '',
       unread: false,
       tokens: 0,
       context: 0,
       kind: 'conversation',
+      progress: todo !== null ? { done: todo.done, total: todo.total } : null,
     });
   }
 
@@ -786,6 +816,7 @@ async function collectDsh(ctx) {
       const header = session.header;
       let lastEventTime = 0;
       let running = false;
+      let openTurnFlag = false;
       try {
         const events = session.ownEvents();
         if (events.length > 0) lastEventTime = events[events.length - 1].time || 0;
@@ -800,6 +831,7 @@ async function collectDsh(ctx) {
             && boundary.lastStepBoundary !== undefined
             && boundary.lastStepBoundary.kind === 'start';
           running = openTurn || openStep;
+          openTurnFlag = running;
         }
       } catch {
         // A session without a readable turn boundary counts as idle.
@@ -822,6 +854,7 @@ async function collectDsh(ctx) {
         parentSession: header && typeof header.parentSession === 'string' ? header.parentSession : '',
         agentPreset: header && typeof header.agentPreset === 'string' ? header.agentPreset : '',
         blank: seq <= 0,
+        openTurn: openTurnFlag,
         pending: [],
       };
     });
@@ -833,9 +866,10 @@ async function collectDsh(ctx) {
   const visible = sessions.filter((row) => row.blank !== true);
   const shown = visible.slice(0, 12);
 
-  // `sessionController.state` is the authoritative passive state: it tells us
-  // whether the agent is running and whether the session is waiting on an
-  // approval or a question. The turn boundary above is only the fallback.
+  // `sessionController.state` is the authoritative passive state. Its
+  // `running` flag only holds while the loop is between steps, so it is used to
+  // *clear* an open turn, never to open one: the turn boundary is the stable
+  // "this agent has work" signal.
   const controller = typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined;
   if (controller !== undefined && typeof controller.state === 'function') {
     const signal = new AbortController().signal;
@@ -843,11 +877,16 @@ async function collectDsh(ctx) {
       try {
         const state = await controller.state({ sessionId: row.sessionId }, signal);
         if (state !== null && typeof state === 'object') {
-          if (typeof state.running === 'boolean') row.status = state.running ? 'running' : 'idle';
-          if (Array.isArray(state.pendingInput)) {
-            for (const kind of state.pendingInput) {
-              if ((kind === 'approval' || kind === 'question') && !row.pending.includes(kind)) row.pending.push(kind);
-            }
+          const pending = Array.isArray(state.pendingInput) ? state.pendingInput : [];
+          for (const kind of pending) {
+            if ((kind === 'approval' || kind === 'question') && !row.pending.includes(kind)) row.pending.push(kind);
+          }
+          if (pending.length > 0) {
+            row.status = 'waiting';
+          } else if (state.running === true) {
+            row.status = 'running';
+          } else if (row.status === 'running' && state.running === false && !row.openTurn) {
+            row.status = 'idle';
           }
         }
       } catch {
@@ -948,6 +987,35 @@ async function collectSnapshot(ctx) {
 /* ------------------------------------------------------------------ */
 
 const MAX_ACTIVITY = 40;
+const statusMemory = new Map();
+
+/**
+ * Hold a status change for STATUS_DEBOUNCE_MS before reporting it. Signals such
+ * as "did a file change in the last two minutes" oscillate, and without this the
+ * panel flickers and the activity feed fills with running -> idle -> running.
+ * `waiting` is exempt: a user decision must surface immediately.
+ */
+function debouncedStatus(key, next, now) {
+  const state = statusMemory.get(key);
+  if (next === 'waiting' || state === undefined) {
+    statusMemory.set(key, { status: next, pending: undefined, pendingSince: 0 });
+    return next;
+  }
+  if (next === state.status) {
+    state.pending = undefined;
+    return next;
+  }
+  if (state.pending !== next) {
+    state.pending = next;
+    state.pendingSince = now;
+    return state.status;
+  }
+  if (now - state.pendingSince < STATUS_DEBOUNCE_MS) return state.status;
+  const from = state.status;
+  state.status = next;
+  state.pending = undefined;
+  return from === next ? state.status : next;
+}
 
 /**
  * Compare two snapshots and describe what changed. The first comparison is
@@ -1136,6 +1204,14 @@ export function apply(ctx) {
     collecting = true;
     try {
       const next = await collectSnapshot(ctx);
+
+      // Stabilise every reported status before it reaches the panel or the feed.
+      for (const runtime of next.runtimes) {
+        runtime.status = debouncedStatus(`runtime:${runtime.id}`, runtime.status, next.now);
+        for (const session of runtime.sessions) {
+          session.status = debouncedStatus(`session:${session.sessionId}`, session.status, next.now);
+        }
+      }
 
       // Console-pending approvals are injected so the reminder centre and the
       // decision buttons see them like any other runtime's approval.

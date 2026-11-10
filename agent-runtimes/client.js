@@ -54,6 +54,8 @@ window.__ModuleLoader__.load({
         'runtime.sessions': '{count} sessions',
         'runtime.heartbeat': 'live',
         'runtime.noData': 'Process running — no readable session state.',
+        'runtime.noActive': 'No active session.',
+        'runtime.progress': '{done}/{total} tasks',
         'runtime.notInstalled': 'Not installed',
         'tokens': 'Tokens',
         'approval.pendingSession': 'DeepSeek Harness session',
@@ -121,6 +123,8 @@ window.__ModuleLoader__.load({
         'runtime.sessions': '{count} 个会话',
         'runtime.heartbeat': '活跃',
         'runtime.noData': '进程运行中 — 暂无可读的会话状态。',
+        'runtime.noActive': '无活跃会话。',
+        'runtime.progress': '待办 {done}/{total}',
         'runtime.notInstalled': '未安装',
         'tokens': '令牌',
         'approval.pendingSession': 'DeepSeek Harness 会话',
@@ -656,9 +660,16 @@ window.__ModuleLoader__.load({
           h('div', { className: 'ar-cardTitle', key: 'title' },
             notInstalled
               ? t('runtime.notInstalled')
-              : (active !== null ? shortTitle(active.title, runtime.id) : (mode !== '' ? mode : t('runtime.noData')))),
+              : (active !== null
+                ? shortTitle(sessionTitle(active.sessionId), active.title)
+                : (mode !== '' ? `${mode} · ${t('runtime.noActive')}` : t('runtime.noActive')))),
           meta.length > 0
             ? h('div', { className: 'ar-cardMeta', key: 'meta' }, meta.map((item, index) => h('span', { key: index }, item)))
+            : null,
+          active !== null && active.progress !== null && typeof active.progress === 'object'
+            ? h('div', { className: 'ar-cardMeta', key: 'progress' }, [
+              h('span', { key: 'label' }, t('runtime.progress', { done: active.progress.done, total: active.progress.total })),
+            ])
             : null,
         ]),
         notInstalled
@@ -718,11 +729,16 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    const noopUseSessions = () => null;
+
     function ConsolePanel(props) {
-      const { ctx } = props;
+      const { ctx, useSessions } = props;
       const storeState = useStore();
       const now = useNow(CLOCK_MS);
       const [expanded, setExpanded] = useState({});
+      // The slot's session hook carries the titles; `ctx.sessions.list` on the
+      // Client has no snapshot reader.
+      const sessionState = (useSessions || noopUseSessions)((state) => state);
 
       const runtimes = Array.isArray(storeState.snapshot.runtimes) ? storeState.snapshot.runtimes : [];
       const approvals = (Array.isArray(storeState.snapshot.approvals) ? storeState.snapshot.approvals : [])
@@ -740,20 +756,14 @@ window.__ModuleLoader__.load({
 
       const sessionTitles = useMemo(() => {
         const map = new Map();
-        try {
-          const snapshot = ctx.sessions && ctx.sessions.list && typeof ctx.sessions.list.getSnapshot === 'function'
-            ? ctx.sessions.list.getSnapshot() : null;
-          const byId = (snapshot && snapshot.byId) || {};
-          for (const id of Object.keys(byId)) {
-            const row = byId[id] || {};
-            const title = typeof row.title === 'string' && row.title !== '' ? row.title : (typeof row.displayTitle === 'string' ? row.displayTitle : '');
-            if (title !== '') map.set(id, title);
-          }
-        } catch {
-          // Titles are a nicety; the console works without them.
+        const byId = (sessionState && sessionState.byId) || {};
+        for (const id of Object.keys(byId)) {
+          const row = byId[id] || {};
+          const title = typeof row.title === 'string' && row.title !== '' ? row.title : (typeof row.displayTitle === 'string' ? row.displayTitle : '');
+          if (title !== '') map.set(id, title);
         }
         return map;
-      }, [ctx, storeState.snapshot.now]);
+      }, [sessionState]);
 
       const titleOf = (id) => {
         const known = sessionTitles.get(id);

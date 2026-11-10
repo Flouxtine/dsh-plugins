@@ -57,6 +57,25 @@ application's state is ever modified.
 The activity feed is a diff between consecutive snapshots, kept in memory for
 the lifetime of the plugin (most recent 40 events).
 
+## Status model
+
+Statuses are derived from each product's own notion of "working", then held for
+30 seconds before they are reported so an oscillating signal cannot make the
+panel flicker:
+
+| Status | Meaning |
+| --- | --- |
+| `running` | the agent has work in flight |
+| `waiting` | the agent is blocked on the user (approval or question) |
+| `idle` | installed and running, nothing in flight |
+| `stopped` | installed but the app is not running |
+
+Sources: WorkBuddy uses the session row's own `working` / `pending` status;
+CodeBuddy uses its per-conversation todo list (an `in_progress` entry) plus a
+10-minute activity window and shows `待办 done/total`; Codex uses an unfinished
+turn in the newest rollout; Cursor uses `hasBlockingPendingActions`; DeepSeek
+Harness uses the open-turn boundary plus `sessionController.state.pendingInput`.
+
 ## Limits
 
 - External runtimes (WorkBuddy, Codex, Cursor) expose no approval API, so the
