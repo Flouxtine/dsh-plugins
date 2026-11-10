@@ -13,3 +13,5 @@ github:zhangzh_anch/dsh-plugins#main&path:/quick-notes
 
 - `quick-notes` — a left-sidebar Todoist-style task list with projects, labels,
   P1–P4 priorities, recurring tasks, subtasks and smart views (`@local/quick-notes`).
+- `agent-workflow-board` — a live multi-agent workflow panel: agent lineage graph,
+  workflow run timeline and Agent Team task board (`@local/agent-workflow-board`).

@@ -1,0 +1,3 @@
+- insert:
+    - id: agent-workflow-board
+      name: '@local/agent-workflow-board'
