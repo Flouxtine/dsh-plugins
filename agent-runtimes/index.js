@@ -1189,14 +1189,15 @@ export function apply(ctx) {
   // Approval requests are dispatched on the requesting agent's scope. A plugin
   // context is unscoped, so it already receives every dispatch; the per-agent
   // copy is a fallback for a deployment that tags its plugin contexts. Both
-  // paths defer to `next()` while interception is off, so the normal answerer
-  // chain is untouched.
+  // paths are prepended: a later answerer would otherwise decide first and the
+  // console would never see the request. While interception is off the listener
+  // defers to `next()`, so the normal chain is untouched.
   const approvalListener = (req, next) => (intercept ? requestConsoleDecision(req, next) : next());
-  ctx.effect(() => ctx.on('approval/request', approvalListener), 'agent-runtimes: approval console');
+  ctx.effect(() => ctx.on('approval/request', approvalListener, { prepend: true }), 'agent-runtimes: approval console');
   ctx.effect(() => ctx.on('agent/created', (payload) => {
     const agent = payload !== null && typeof payload === 'object' ? payload.agent : undefined;
     if (agent === undefined || agent.ctx === undefined) return;
-    agent.ctx.effect(() => agent.ctx.on('approval/request', approvalListener), 'agent-runtimes: approval');
+    agent.ctx.effect(() => agent.ctx.on('approval/request', approvalListener, { prepend: true }), 'agent-runtimes: approval');
   }), 'agent-runtimes: approval intercept');
 
   const refresh = async () => {
