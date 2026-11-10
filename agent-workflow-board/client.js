@@ -352,9 +352,9 @@ window.__ModuleLoader__.load({
       return timing.settledMs + Math.max(0, now - timing.active.since);
     }
 
-    function statusOf(rec, running) {
+    function statusOf(rec) {
       if (rec === undefined || rec === null) return 'idle';
-      if (running === true) return 'running';
+      if (rec.running === true) return 'running';
       if (rec.lastTurnCompleted === true) return 'done';
       if (rec.lastTurnCompleted === false) return 'failed';
       if (rec.blank) return 'idle';
@@ -417,12 +417,12 @@ window.__ModuleLoader__.load({
       };
     }
 
-    function summarize(lineage, statusMap, now) {
+    function summarize(lineage, now) {
       const counts = { total: 0, running: 0, done: 0, failed: 0, idle: 0, waiting: 0, tokens: 0, hasTokens: false, duration: 0, hasDuration: false };
       for (const id of Object.keys(lineage.byId)) {
         const rec = lineage.byId[id];
         counts.total += 1;
-        counts[statusOf(rec, statusMap.get(id) ? statusMap.get(id).running : undefined)] += 1;
+        counts[statusOf(rec)] += 1;
         const tokens = tokenTotal(rec.values.tokenUsage);
         if (tokens !== undefined) { counts.tokens += tokens; counts.hasTokens = true; }
         const duration = timingDuration(rec.values, now);
@@ -506,6 +506,93 @@ window.__ModuleLoader__.load({
       return state;
     }
 
+    /** Host session rows over the shared HTTP RPC, polled beside the Client store. */
+    function useHostSessions() {
+      const [sessions, setSessions] = useState([]);
+      useEffect(() => {
+        let stop = false;
+        const tick = () => {
+          const rpcId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+            ? crypto.randomUUID() : `awb-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          fetch('api/session/list', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ type: 'client-request', rpcId, method: 'session/list', payload: {} }),
+          })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((envelope) => {
+              if (stop || envelope === null) return;
+              const result = envelope.result;
+              if (result === undefined || result.ok !== true) return;
+              const items = result.value && Array.isArray(result.value.items) ? result.value.items : [];
+              setSessions(items.map((item) => {
+                const values = (item.projections && item.projections.values) || {};
+                return {
+                  id: item.sessionId,
+                  title: typeof values.title === 'string' ? values.title : undefined,
+                  parentId: item.parentSessionId,
+                  running: Boolean(item.running),
+                  blank: Boolean(item.blank),
+                  updatedAt: item.updatedAt,
+                  cwd: item.cwd,
+                  values,
+                };
+              }));
+            })
+            .catch(() => {
+              // The Client store alone still renders the board.
+            });
+        };
+        tick();
+        const timer = setInterval(tick, 3000);
+        return () => { stop = true; clearInterval(timer); };
+      }, []);
+      return sessions;
+    }
+
+    const EMPTY_SNAPSHOT = { ids: [], byId: {}, phase: 'pending', projectionsBySession: {} };
+
+    /**
+     * Merge Host session rows with the Client store snapshot. The Client row wins
+     * where both know the Session, so live retention and fresher values survive.
+     * @param store - Client `SessionListState` snapshot.
+     * @param hostSessions - rows from the Host sessions endpoint.
+     * @returns one snapshot in the Client store's shape.
+     */
+    function mergeSnapshots(store, hostSessions) {
+      const byId = {};
+      const projectionsBySession = {};
+      for (const session of hostSessions) {
+        const values = (session && session.values) || {};
+        byId[session.id] = {
+          id: session.id,
+          title: session.title || '',
+          displayTitle: session.title || session.id,
+          parentId: session.parentId || '',
+          blank: Boolean(session.blank),
+          updatedAt: session.updatedAt || 0,
+          cwd: session.cwd || '',
+          running: Boolean(session.running),
+          retainedBy: {},
+          lastTurnCompleted: values.subagentTiming ? values.subagentTiming.lastTurnCompleted : undefined,
+          values,
+        };
+        projectionsBySession[session.id] = { values, state: 'ready', error: null };
+      }
+      const storeById = (store && store.byId) || {};
+      for (const id of Object.keys(storeById)) {
+        const row = storeById[id] || {};
+        byId[id] = { ...(byId[id] || {}), ...row };
+      }
+      const storeProjections = (store && store.projectionsBySession) || {};
+      for (const id of Object.keys(storeProjections)) {
+        projectionsBySession[id] = storeProjections[id];
+        const row = byId[id];
+        if (row !== undefined) row.values = storeProjections[id].values || row.values;
+      }
+      return { ids: Object.keys(byId), byId, phase: 'ready', projectionsBySession };
+    }
+
     /** Open one Session: subagents open in the right sidebar, others in the main view. */
     function makeOpenSession(ctx) {
       return function openSession(sessionId) {
@@ -543,10 +630,11 @@ window.__ModuleLoader__.load({
       return h('span', { className: `awb-dot awb-dot--${status}` });
     }
 
-    function EmptyState({ t, message, icon }) {
+    function EmptyState({ t, message, icon, hint }) {
       return h('div', { className: 'awb-empty' }, [
         h('div', { className: 'awb-emptyIcon', key: 'icon' }, icon || '🗂'),
         h('div', { key: 'text' }, message),
+        hint ? h('div', { className: 'awb-meta', style: { marginTop: 8 }, key: 'hint' }, hint) : null,
       ]);
     }
 
@@ -562,15 +650,13 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function OverviewView(props) {
-      const { leadSessionId, useSessions, useSessionStatus, openSession, t, now, runs, runCount } = props;
-      const snapshot = useSessions((state) => state);
-      const statusMap = useSessionStatus((state) => state);
+      const { leadSessionId, snapshot, openSession, t, now, runs, runCount, emptyHint } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
-      const stats = useMemo(() => summarize(lineage, statusMap, now), [lineage, statusMap, now]);
+      const stats = useMemo(() => summarize(lineage, now), [lineage, now]);
       const activity = useMemo(() => collectActivity(lineage, 12), [lineage]);
       const lead = leadSessionId !== '' ? lineage.byId[leadSessionId] : undefined;
       const leadInfo = lead ? nodeInfo(lead, now) : undefined;
-      const leadStatus = lead ? statusOf(lead, statusMap.get(lead.id) ? statusMap.get(lead.id).running : undefined) : 'idle';
+      const leadStatus = lead ? statusOf(lead) : 'idle';
 
       return h('div', { className: 'awb-view' }, [
         h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
@@ -580,7 +666,7 @@ window.__ModuleLoader__.load({
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
           stats.total === 0
-            ? EmptyState({ t, message: t('overview.empty'), icon: '🗂' })
+            ? EmptyState({ t, message: t('overview.empty'), icon: '🗂', hint: emptyHint })
             : [
               h('div', { className: 'awb-stats', key: 'stats' }, [
                 h(StatTile, { key: 'sessions', label: t('overview.stats.sessions'), value: String(stats.total) }),
@@ -735,9 +821,7 @@ window.__ModuleLoader__.load({
     }
 
     function GraphView(props) {
-      const { useSessions, useSessionStatus, openSession, t, now, currentId } = props;
-      const snapshot = useSessions((state) => state);
-      const statusMap = useSessionStatus((state) => state);
+      const { snapshot, openSession, t, now, currentId, emptyHint } = props;
       const [rootId, setRootId] = useState('');
       const [showAll, setShowAll] = useState(false);
       const [wide, setWide] = useState(true);
@@ -754,9 +838,9 @@ window.__ModuleLoader__.load({
       }, []);
 
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
-      const stats = useMemo(() => summarize(lineage, statusMap, now), [lineage, statusMap, now]);
+      const stats = useMemo(() => summarize(lineage, now), [lineage, now]);
       const infoOf = (id) => nodeInfo(lineage.byId[id], now);
-      const statusOfNode = (id) => statusOf(lineage.byId[id], statusMap.get(id) ? statusMap.get(id).running : undefined);
+      const statusOfNode = (id) => statusOf(lineage.byId[id]);
 
       const isActive = (id) => {
         const rec = lineage.byId[id];
@@ -837,7 +921,7 @@ window.__ModuleLoader__.load({
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
           tree === null
-            ? EmptyState({ t, message: t('graph.empty'), icon: '🕸' })
+            ? EmptyState({ t, message: t('graph.empty'), icon: '🕸', hint: emptyHint })
             : wide
               ? h('div', { className: 'awb-graphScroll', key: 'wide' }, [
                 h('div', { className: 'awb-graphCanvas', style: { width, height }, key: 'canvas' }, [
@@ -921,8 +1005,7 @@ window.__ModuleLoader__.load({
     }
 
     function TimelineView(props) {
-      const { useSessions, openSession, t, now, runs, runOk } = props;
-      const snapshot = useSessions((state) => state);
+      const { snapshot, openSession, t, now, runs, runOk } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const agentEvents = useMemo(() => collectActivity(lineage, 40).filter((event) => event.kind === 'agent'), [lineage]);
       const totalRunAgents = runs.reduce((total, run) => total + (Array.isArray(run.agents) ? run.agents.length : 0), 0);
@@ -964,9 +1047,7 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function TeamView(props) {
-      const { leadSessionId, useSessions, useSessionStatus, openSession, t, now } = props;
-      const snapshot = useSessions((state) => state);
-      const statusMap = useSessionStatus((state) => state);
+      const { leadSessionId, snapshot, openSession, t, now } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const team = leadSessionId !== '' && snapshot.projectionsBySession[leadSessionId] !== undefined
         ? snapshot.projectionsBySession[leadSessionId].values.agentTeam
@@ -982,14 +1063,14 @@ window.__ModuleLoader__.load({
           id: member.id,
           name: member.name,
           role: member.role,
-          status: memberStatus(member, statusMap.get(member.id) ? statusMap.get(member.id).running : undefined),
+          status: memberStatus(member, snapshot.byId[member.id] ? snapshot.byId[member.id].running : undefined),
           model: modelOf(member.id),
         }))
         : collectActivity(lineage).filter((event) => event.kind === 'agent').map((event) => ({
           id: event.childId,
           name: event.title,
           role: 'member',
-          status: statusOf(lineage.byId[event.childId], statusMap.get(event.childId) ? statusMap.get(event.childId).running : undefined),
+          status: statusOf(lineage.byId[event.childId]),
           model: nodeInfo(lineage.byId[event.childId], now).model,
         }));
 
@@ -1081,12 +1162,15 @@ window.__ModuleLoader__.load({
     function PanelBody(props) {
       const {
         tab, setTab, t, now, runs, runOk,
-        useSessions, useSessionStatus, useSession, sessionId, leadSessionId, openSession,
+        useSessions, sessionId, leadSessionId, openSession,
       } = props;
-      const snapshot = useSessions((state) => state);
+      const storeSnapshot = typeof useSessions === 'function' ? useSessions((state) => state) : EMPTY_SNAPSHOT;
+      const hostSessions = useHostSessions();
+      const snapshot = useMemo(() => mergeSnapshots(storeSnapshot, hostSessions), [storeSnapshot, hostSessions]);
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
+      const emptyHint = `store ${Object.keys((storeSnapshot && storeSnapshot.byId) || {}).length} · host ${hostSessions.length}`;
       const currentId = (() => {
-        const found = Object.values((snapshot && snapshot.byId) || {})
+        const found = Object.values(snapshot.byId)
           .find((rec) => rec.retainedBy && rec.retainedBy.mainView > 0);
         return (found && found.id) || sessionId || leadSessionId || '';
       })();
@@ -1098,44 +1182,36 @@ window.__ModuleLoader__.load({
         h('div', { className: 'awb-body', key: 'body' }, [
           tab === 'overview'
             ? h(OverviewView, {
-              leadSessionId: lead, useSessions, useSessionStatus, openSession, t, now,
-              runs, runCount: runs.length, key: 'view',
+              leadSessionId: lead, snapshot, openSession, t, now,
+              runs, runCount: runs.length, emptyHint, key: 'view',
             })
             : tab === 'graph'
               ? h(GraphView, {
-                useSessions, useSessionStatus, openSession, t, now, currentId, key: 'view',
+                snapshot, openSession, t, now, currentId, emptyHint, key: 'view',
               })
               : tab === 'timeline'
-                ? h(TimelineView, {
-                  useSessions, openSession, t, now, runs, runOk, key: 'view',
-                })
-                : h(TeamView, {
-                  leadSessionId: lead, useSessions, useSessionStatus, openSession, t, now, key: 'view',
-                }),
+                ? h(TimelineView, { snapshot, openSession, t, now, runs, runOk, key: 'view' })
+                : h(TeamView, { leadSessionId: lead, snapshot, openSession, t, now, key: 'view' }),
         ]),
       ]);
     }
 
     function MainPanel(props) {
-      const { useSessions, useSessionStatus, openSession, t } = props;
+      const { useSessions, openSession, t } = props;
       const [tab, setTab] = useState('overview');
       const now = useNow(15000);
       const { runs, ok } = useWorkflowRuns();
-      return h(PanelBody, {
-        tab, setTab, t, now, runs, runOk: ok,
-        useSessions, useSessionStatus, openSession,
-      });
+      return h(PanelBody, { tab, setTab, t, now, runs, runOk: ok, useSessions, openSession });
     }
 
     function AsidePanel(props) {
-      const { useSession, sessionId, useSessions, useSessionStatus, openSession, t } = props;
+      const { useSession, sessionId, useSessions, openSession, t } = props;
       const [tab, setTab] = useState('overview');
       const now = useNow(15000);
       const { runs, ok } = useWorkflowRuns();
       const parentSessionId = useSession((state) => (state ? state.subagent && state.subagent.address.parentSessionId : undefined));
       return h(PanelBody, {
-        tab, setTab, t, now, runs, runOk: ok,
-        useSessions, useSessionStatus, useSession, sessionId,
+        tab, setTab, t, now, runs, runOk: ok, useSessions, sessionId,
         leadSessionId: parentSessionId || sessionId || '',
         openSession,
       });
