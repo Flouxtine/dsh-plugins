@@ -103,5 +103,6 @@
   "preset.task": "Send task",
   "preset.result": "Result",
   "preset.invoke": "Send task (SSE)",
-  "credentials.headers": "Custom headers"
+  "credentials.headers": "Custom headers",
+  "credentials.fullOutput": "Full output (up to 200 KB)"
 }

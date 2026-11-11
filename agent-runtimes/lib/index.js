@@ -1541,13 +1541,13 @@ export function apply(ctx) {
                 }
                 const timeoutMs = typeof parsed.timeoutMs === 'number' ? Math.min(Math.max(parsed.timeoutMs, 1000), 300000) : 60000;
                 const response = await fetch(url, init);
-                const limit = typeof parsed.limit === 'number' ? Math.min(Math.max(parsed.limit, 1024), 200000) : 8000;
+                const limit = typeof parsed.limit === 'number' ? Math.min(Math.max(parsed.limit, 1024), 200000) : 50000;
                 const text = await readResponse(response, timeoutMs, limit);
                 reply(200, {
                   ok: true,
                   status: response.status,
                   contentType: response.headers.get('content-type') || '',
-                  body: text.slice(0, 20000),
+                  body: text.slice(0, 200000),
                 });
               } catch (error) {
                 reply(200, { ok: false, error: error && error.message ? error.message : String(error) });

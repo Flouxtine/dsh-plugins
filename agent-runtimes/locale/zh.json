@@ -103,5 +103,6 @@
   "preset.task": "发任务",
   "preset.result": "查结果",
   "preset.invoke": "发任务 (SSE)",
-  "credentials.headers": "自定义请求头"
+  "credentials.headers": "自定义请求头",
+  "credentials.fullOutput": "完整输出（最多 200 KB）"
 }

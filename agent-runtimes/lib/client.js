@@ -83,6 +83,7 @@ window.__ModuleLoader__.load({
         'credentials.method': 'Method',
         'credentials.body': 'Body',
         'credentials.send': 'Send',
+        'credentials.fullOutput': 'Full output (up to 200 KB)',
         'credentials.sending': 'Sending…',
         'credentials.urlRequired': 'Enter a URL first.',
         'credentials.callFailed': 'Call failed',
@@ -196,6 +197,7 @@ window.__ModuleLoader__.load({
         'credentials.method': '方法',
         'credentials.body': '请求体',
         'credentials.send': '发送',
+        'credentials.fullOutput': '完整输出（最多 200 KB）',
         'credentials.sending': '发送中…',
         'credentials.urlRequired': '请先填写 URL。',
         'credentials.callFailed': '调用失败',
@@ -906,6 +908,8 @@ window.__ModuleLoader__.load({
 .ar-crItem { display: flex; flex-direction: column; gap: 8px; }
 .ar-crField textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12.5px; padding: 6px 8px; outline: none; resize: vertical; }
 .ar-crField textarea:focus { border-color: var(--dsw-alias-brand-primary); }
+.ar-crCheck { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
+.ar-crCheck input { accent-color: var(--dsw-alias-brand-primary); }
 .ar-crResult { margin: 0; max-height: 220px; overflow: auto; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-family: var(--dsw-alias-font-mono); font-size: 11.5px; line-height: 1.5; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
 `;
 
@@ -1063,7 +1067,8 @@ window.__ModuleLoader__.load({
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
               action: 'invoke', id: invoke.id, url: invoke.url, method: invoke.method, body: invoke.body,
-              headers: parseHeaderText(invoke.headers), timeoutMs: invoke.timeoutMs, limit: invoke.limit,
+              headers: parseHeaderText(invoke.headers), timeoutMs: invoke.timeoutMs,
+              limit: invoke.fullOutput === true ? 200000 : invoke.limit,
             }),
           });
           const result = await response.json();
@@ -1147,11 +1152,11 @@ window.__ModuleLoader__.load({
                 h('div', { className: 'ar-crRowMeta', key: 'time' }, formatRelative(item.createdAt, Date.now())),
                 (PRESET_CALLS[item.agent] || []).map((preset) => h('button', {
                   type: 'button', className: 'ar-linkBtn', key: preset.id,
-                  onClick: () => setInvoke({ id: item.id, url: preset.url, method: preset.method, body: preset.body, headers: headerTextOf(item), timeoutMs: 60000, limit: 8000, result: null }),
+                  onClick: () => setInvoke({ id: item.id, url: preset.url, method: preset.method, body: preset.body, headers: headerTextOf(item), timeoutMs: 60000, limit: 50000, result: null }),
                 }, t(preset.labelKey))),
                 h('button', {
                   type: 'button', className: 'ar-linkBtn', key: 'invoke',
-                  onClick: () => setInvoke({ id: item.id, url: '', method: 'POST', body: '', headers: headerTextOf(item), timeoutMs: 60000, limit: 8000, result: null }),
+                  onClick: () => setInvoke({ id: item.id, url: '', method: 'POST', body: '', headers: headerTextOf(item), timeoutMs: 60000, limit: 50000, result: null }),
                 }, t('credentials.invoke')),
                 h('button', { type: 'button', className: 'ar-linkBtn', key: 'delete', onClick: () => { void remove(item.id); } }, t('credentials.remove')),
               ]),
@@ -1184,6 +1189,13 @@ window.__ModuleLoader__.load({
                     placeholder: '{"x-signature-key-id": "{{axon-sig-id}}"}',
                     onChange: (event) => setInvoke({ ...invoke, headers: event.target.value }),
                   }),
+                ]),
+                h('label', { className: 'ar-crCheck', key: 'fullOutput' }, [
+                  h('input', {
+                    type: 'checkbox', checked: invoke.fullOutput === true,
+                    onChange: (event) => setInvoke({ ...invoke, fullOutput: event.target.checked }),
+                  }),
+                  h('span', { key: 'label' }, t('credentials.fullOutput')),
                 ]),
                 h('div', { className: 'ar-crActions', key: 'actions' }, [
                   h('button', { type: 'button', className: 'ar-btn', key: 'close', onClick: () => setInvoke(null) }, t('credentials.cancel')),
