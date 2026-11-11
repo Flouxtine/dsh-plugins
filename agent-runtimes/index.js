@@ -1237,6 +1237,55 @@ function credentialPayloadOf(record) {
   return record.payload !== null && typeof record.payload === 'object' ? record.payload : null;
 }
 
+/** Find another binding by the name the user gave it, and resolve its secret. */
+async function resolveCredentialByName(credentials, name) {
+  const entries = await credentials.listRecords();
+  for (const entry of entries) {
+    if (!String(entry.key).startsWith(CREDENTIAL_PREFIX)) continue;
+    let payload;
+    try {
+      payload = credentialPayloadOf(await credentials.readRecord(entry.key));
+    } catch {
+      continue;
+    }
+    if (payload === null || payload.name !== name || typeof payload.ref !== 'string' || payload.ref === '') continue;
+    const resolved = await credentials.resolve(payload.ref);
+    if (resolved !== undefined && resolved.value !== '') return resolved.value;
+  }
+  return undefined;
+}
+
+/**
+ * Read a response, capping both bytes and wall-clock time. Server-sent event
+ * streams stay open, so a plain `text()` would wait for the task to finish.
+ */
+async function readResponse(response, timeoutMs, limit) {
+  if (response.body === null) return await response.text();
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const step = await Promise.race([
+      reader.read(),
+      new Promise((resolve) => { setTimeout(() => resolve({ timedOut: true }), remaining); }),
+    ]);
+    if (step.timedOut === true) break;
+    if (step.done === true) break;
+    chunks.push(Buffer.from(step.value));
+    total += step.value.byteLength;
+    if (total >= limit) break;
+  }
+  try {
+    reader.cancel();
+  } catch {
+    // The stream may already be closed.
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
 export function apply(ctx) {
   const settings = readSettings();
   let intercept = settings.intercept === true;
@@ -1467,14 +1516,39 @@ export function apply(ctx) {
                 }
                 const init = {
                   method,
-                  headers: { authorization: `Bearer ${resolved.value}`, 'content-type': 'application/json' },
+                  headers: { authorization: `Bearer ${resolved.value}` },
                 };
+                if (method !== 'GET' && method !== 'HEAD') init.headers['content-type'] = 'application/json';
                 if (method !== 'GET' && method !== 'HEAD' && typeof parsed.body === 'string' && parsed.body.trim() !== '') {
                   init.body = parsed.body;
                 }
+                // Extra headers may reference another stored credential as {{name}},
+                // so one binding can carry the signature keys a second one owns.
+                const headerSource = parsed.headers !== null && typeof parsed.headers === 'object' ? parsed.headers : payload.headers;
+                for (const [name, raw] of Object.entries(headerSource !== null && typeof headerSource === 'object' ? headerSource : {})) {
+                  if (typeof raw !== 'string' || raw === '') continue;
+                  let value = raw;
+                  const reference = /^\{\{([^{}]+)\}\}$/.exec(raw.trim());
+                  if (reference !== null) {
+                    const target = await resolveCredentialByName(credentials, reference[1]);
+                    if (target === undefined) {
+                      reply(200, { ok: false, error: `unknown-credential:${reference[1]}` });
+                      return;
+                    }
+                    value = target;
+                  }
+                  init.headers[String(name).toLowerCase()] = value;
+                }
+                const timeoutMs = typeof parsed.timeoutMs === 'number' ? Math.min(Math.max(parsed.timeoutMs, 1000), 300000) : 60000;
                 const response = await fetch(url, init);
-                const text = await response.text();
-                reply(200, { ok: true, status: response.status, body: text.slice(0, 8000) });
+                const limit = typeof parsed.limit === 'number' ? Math.min(Math.max(parsed.limit, 1024), 200000) : 8000;
+                const text = await readResponse(response, timeoutMs, limit);
+                reply(200, {
+                  ok: true,
+                  status: response.status,
+                  contentType: response.headers.get('content-type') || '',
+                  body: text.slice(0, 20000),
+                });
               } catch (error) {
                 reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
               }
@@ -1641,6 +1715,7 @@ export function apply(ctx) {
                   createdAt: typeof payload.createdAt === 'number' ? payload.createdAt : 0,
                   ref,
                   configured,
+                  headers: payload.headers !== null && typeof payload.headers === 'object' ? payload.headers : {},
                 });
               }
               items.sort((a, b) => b.createdAt - a.createdAt);
@@ -1676,16 +1751,22 @@ export function apply(ctx) {
             void (async () => {
               try {
                 await credentials.set(ref, secret);
+                const headers = parsed.headers !== null && typeof parsed.headers === 'object' ? { ...parsed.headers } : {};
+                for (const [name, value] of Object.entries(headers)) {
+                  if (typeof value !== 'string') delete headers[name];
+                }
+                const stored = {
+                  id,
+                  name,
+                  agent: typeof parsed.agent === 'string' ? parsed.agent : '',
+                  purpose: typeof parsed.purpose === 'string' ? parsed.purpose.trim() : '',
+                  ref,
+                  createdAt: Date.now(),
+                };
+                if (Object.keys(headers).length > 0) stored.headers = headers;
                 await credentials.modifyRecord(credentialKeyOf(id), async () => ({
                   kind: 'grant',
-                  payload: {
-                    id,
-                    name,
-                    agent: typeof parsed.agent === 'string' ? parsed.agent : '',
-                    purpose: typeof parsed.purpose === 'string' ? parsed.purpose.trim() : '',
-                    ref,
-                    createdAt: Date.now(),
-                  },
+                  payload: stored,
                 }));
                 reply(200, { ok: true, id, ref });
               } catch (error) {

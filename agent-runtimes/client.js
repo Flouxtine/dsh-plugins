@@ -90,6 +90,8 @@ window.__ModuleLoader__.load({
         'preset.register': 'Register',
         'preset.task': 'Send task',
         'preset.result': 'Result',
+        'preset.invoke': 'Send task (SSE)',
+        'credentials.headers': 'Custom headers',
         'credentials.empty': 'No API keys stored yet.',
         'credentials.loading': 'Loading…',
         'credentials.configured': 'configured',
@@ -201,6 +203,8 @@ window.__ModuleLoader__.load({
         'preset.register': '注册',
         'preset.task': '发任务',
         'preset.result': '查结果',
+        'preset.invoke': '发任务 (SSE)',
+        'credentials.headers': '自定义请求头',
         'credentials.empty': '还没有保存任何 API Key。',
         'credentials.loading': '加载中…',
         'credentials.configured': '已配置',
@@ -815,6 +819,22 @@ window.__ModuleLoader__.load({
 
     const noopUseSessions = () => null;
 
+    function headerTextOf(item) {
+      const headers = item.headers !== null && typeof item.headers === 'object' ? item.headers : {};
+      return Object.keys(headers).length === 0 ? '' : JSON.stringify(headers, null, 2);
+    }
+
+    function parseHeaderText(text) {
+      const trimmed = String(text === undefined || text === null ? '' : text).trim();
+      if (trimmed === '') return {};
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
     const RUNTIME_OPTIONS = [
       { id: 'workbuddy', name: 'WorkBuddy' },
       { id: 'codebuddy', name: 'CodeBuddy CN' },
@@ -830,6 +850,18 @@ window.__ModuleLoader__.load({
      */
     const PRESET_CALLS = {
       axon: [
+        {
+          id: 'invoke', labelKey: 'preset.invoke', method: 'POST',
+          url: 'https://<BASE_URL>/invoke/sse',
+          body: [
+            '{',
+            '  "type": "agent",',
+            '  "task": "Summarize why agent-to-agent payments matter",',
+            '  "team_id": "<AGENT_ID>",',
+            '  "session_id": "<your-session-id>"',
+            '}',
+          ].join('\n'),
+        },
         { id: 'directory', labelKey: 'preset.directory', method: 'GET', url: 'https://axon-agents.com/api/agents', body: '' },
         { id: 'register', labelKey: 'preset.register', method: 'POST', url: 'https://axon-agents.com/api/agents', body: [
           '{',
@@ -838,13 +870,6 @@ window.__ModuleLoader__.load({
           '  "capabilities": ["research", "summarization"],',
           '  "publicKey": "YOUR_AGENT_PUBLIC_KEY",',
           '  "walletAddress": "YOUR_WALLET_ADDRESS"',
-          '}',
-        ].join('\n') },
-        { id: 'task', labelKey: 'preset.task', method: 'POST', url: 'https://axon-agents.com/api/tasks', body: [
-          '{',
-          '  "from": "YOUR_WALLET_ADDRESS",',
-          '  "to": "my-agent",',
-          '  "task": "Summarize why agent-to-agent payments matter"',
           '}',
         ].join('\n') },
         { id: 'result', labelKey: 'preset.result', method: 'GET', url: 'https://axon-agents.com/api/tasks/TASK_ID', body: '' },
@@ -994,7 +1019,10 @@ window.__ModuleLoader__.load({
           const response = await fetch(`${API}/credentials`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ name: draft.name, agent: draft.agent, purpose: draft.purpose, secret: draft.secret }),
+            body: JSON.stringify({
+              name: draft.name, agent: draft.agent, purpose: draft.purpose, secret: draft.secret,
+              headers: parseHeaderText(draft.headers),
+            }),
           });
           const result = await response.json();
           if (result.ok !== true) {
@@ -1033,7 +1061,10 @@ window.__ModuleLoader__.load({
           const response = await fetch(`${API}/action`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ action: 'invoke', id: invoke.id, url: invoke.url, method: invoke.method, body: invoke.body }),
+            body: JSON.stringify({
+              action: 'invoke', id: invoke.id, url: invoke.url, method: invoke.method, body: invoke.body,
+              headers: parseHeaderText(invoke.headers), timeoutMs: invoke.timeoutMs, limit: invoke.limit,
+            }),
           });
           const result = await response.json();
           if (result.ok !== true) {
@@ -1066,7 +1097,7 @@ window.__ModuleLoader__.load({
           ]),
           h('button', {
             type: 'button', className: 'ar-btn ar-btn--primary', key: 'add',
-            onClick: () => setDraft({ name: '', agent: 'workbuddy', purpose: '', secret: '' }),
+            onClick: () => setDraft({ name: '', agent: 'workbuddy', purpose: '', secret: '', headers: '' }),
           }, t('credentials.add')),
         ]),
         state.notice !== '' ? h('div', { className: 'ar-crNotice', key: 'notice' }, state.notice) : null,
@@ -1087,6 +1118,15 @@ window.__ModuleLoader__.load({
           ]),
           field('purpose', 'credentials.purpose', 'credentials.purposePlaceholder', draft.purpose, (value) => setDraft({ ...draft, purpose: value })),
           field('secret', 'credentials.secret', 'credentials.secretPlaceholder', draft.secret, (value) => setDraft({ ...draft, secret: value }), 'password'),
+          h('label', { className: 'ar-crField', key: 'headers' }, [
+            h('span', { key: 'label' }, t('credentials.headers')),
+            h('textarea', {
+              key: 'textarea', rows: 3,
+              value: draft.headers,
+              placeholder: '{"x-signature-key-id": "{{axon-sig-id}}"}',
+              onChange: (event) => setDraft({ ...draft, headers: event.target.value }),
+            }),
+          ]),
           h('div', { className: 'ar-crActions', key: 'actions' }, [
             h('button', { type: 'button', className: 'ar-btn', key: 'cancel', onClick: () => setDraft(null) }, t('credentials.cancel')),
             h('button', { type: 'button', className: 'ar-btn ar-btn--primary', key: 'confirm', onClick: () => { void submit(); } }, t('credentials.confirm')),
@@ -1107,11 +1147,11 @@ window.__ModuleLoader__.load({
                 h('div', { className: 'ar-crRowMeta', key: 'time' }, formatRelative(item.createdAt, Date.now())),
                 (PRESET_CALLS[item.agent] || []).map((preset) => h('button', {
                   type: 'button', className: 'ar-linkBtn', key: preset.id,
-                  onClick: () => setInvoke({ id: item.id, url: preset.url, method: preset.method, body: preset.body, result: null }),
+                  onClick: () => setInvoke({ id: item.id, url: preset.url, method: preset.method, body: preset.body, headers: headerTextOf(item), timeoutMs: 60000, limit: 8000, result: null }),
                 }, t(preset.labelKey))),
                 h('button', {
                   type: 'button', className: 'ar-linkBtn', key: 'invoke',
-                  onClick: () => setInvoke({ id: item.id, url: '', method: 'POST', body: '', result: null }),
+                  onClick: () => setInvoke({ id: item.id, url: '', method: 'POST', body: '', headers: headerTextOf(item), timeoutMs: 60000, limit: 8000, result: null }),
                 }, t('credentials.invoke')),
                 h('button', { type: 'button', className: 'ar-linkBtn', key: 'delete', onClick: () => { void remove(item.id); } }, t('credentials.remove')),
               ]),
@@ -1135,6 +1175,14 @@ window.__ModuleLoader__.load({
                   h('textarea', {
                     key: 'textarea', rows: 4, value: invoke.body, placeholder: '{"…": "…"}',
                     onChange: (event) => setInvoke({ ...invoke, body: event.target.value }),
+                  }),
+                ]),
+                h('label', { className: 'ar-crField', key: 'headers' }, [
+                  h('span', { key: 'label' }, t('credentials.headers')),
+                  h('textarea', {
+                    key: 'textarea', rows: 3, value: invoke.headers,
+                    placeholder: '{"x-signature-key-id": "{{axon-sig-id}}"}',
+                    onChange: (event) => setInvoke({ ...invoke, headers: event.target.value }),
                   }),
                 ]),
                 h('div', { className: 'ar-crActions', key: 'actions' }, [

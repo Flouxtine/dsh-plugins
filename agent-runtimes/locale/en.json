@@ -101,5 +101,7 @@
   "preset.directory": "Directory",
   "preset.register": "Register",
   "preset.task": "Send task",
-  "preset.result": "Result"
+  "preset.result": "Result",
+  "preset.invoke": "Send task (SSE)",
+  "credentials.headers": "Custom headers"
 }
