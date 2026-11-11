@@ -24,7 +24,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -143,6 +143,18 @@ function pathExists(path) {
   } catch {
     return false;
   }
+}
+
+function writeText(path, text) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text, 'utf8');
+}
+
+/** A short, single-line label for a piece of text. */
+function shortTitle(text, limit = 48) {
+  const line = String(text === undefined || text === null ? '' : text).replace(/\s+/g, ' ').trim();
+  if (line === '') return '';
+  return line.length > limit ? `${line.slice(0, limit - 1)}…` : line;
 }
 
 function readText(path) {
@@ -1020,6 +1032,7 @@ const COLLECTORS = [
   { id: 'codex', name: 'Codex++', app: '/Applications/Codex++.app', collect: () => collectCodex() },
   { id: 'cursor', name: 'Cursor', app: '/Applications/Cursor.app', collect: () => collectCursor() },
   { id: 'dsh', name: 'DeepSeek Harness', app: '', collect: (ctx) => collectDsh(ctx) },
+  { id: 'axon', name: 'Axon', app: '', collect: (ctx) => collectAxon(ctx) },
 ];
 
 async function collectSnapshot(ctx) {
@@ -1216,6 +1229,212 @@ function displayReasonOf(req) {
 
 /** Required for the HTTP routes, the live Session store, the agent turn boundaries and the credential store. */
 export const inject = ['webServer', 'sessions', 'agents', 'credentials'];
+
+/* ------------------------------------------------------------------ */
+/* Axon — a cloud agent reached over its SSE invoke endpoint           */
+/* ------------------------------------------------------------------ */
+
+const AXON_DEFAULT_BASE = 'https://api.aiops.anchnet.com';
+const AXON_STATE_FILE = 'agent-runtimes-axon.json';
+
+function axonStatePath() {
+  return join(homedir(), '.dsh', AXON_STATE_FILE);
+}
+
+function readAxonState() {
+  const fallback = { sessions: [], lastSession: '', lastReply: '', lastRunId: '', lastApproval: '' };
+  try {
+    const parsed = JSON.parse(readText(axonStatePath()));
+    return {
+      sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
+      lastSession: typeof parsed.lastSession === 'string' ? parsed.lastSession : '',
+      lastReply: typeof parsed.lastReply === 'string' ? parsed.lastReply : '',
+      lastRunId: typeof parsed.lastRunId === 'string' ? parsed.lastRunId : '',
+      lastApproval: typeof parsed.lastApproval === 'string' ? parsed.lastApproval : '',
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeAxonState(patch) {
+  const next = { ...readAxonState(), ...patch };
+  try {
+    writeText(axonStatePath(), `${JSON.stringify(next, null, 2)}\n`);
+  } catch {
+    // A read-only home must not break the snapshot.
+  }
+  return next;
+}
+
+/** The stored credential that carries the Axon API key. */
+async function axonCredential(ctx) {
+  const credentials = typeof ctx.get === 'function' ? ctx.get('credentials') : undefined;
+  if (credentials === undefined) return null;
+  const entries = await credentials.listRecords();
+  for (const entry of entries) {
+    if (!String(entry.key).startsWith(CREDENTIAL_PREFIX)) continue;
+    let payload;
+    try {
+      payload = credentialPayloadOf(await credentials.readRecord(entry.key));
+    } catch {
+      continue;
+    }
+    if (payload === null) continue;
+    if (payload.agent === 'axon' || payload.name === 'axon') return { credentials, payload };
+  }
+  return null;
+}
+
+async function collectAxon(ctx) {
+  const settings = readSettings();
+  const configured = settings.axon !== null && typeof settings.axon === 'object' ? settings.axon : {};
+  const baseUrl = String(configured.baseUrl || AXON_DEFAULT_BASE).replace(/\/+$/, '');
+  const teamId = typeof configured.teamId === 'string' ? configured.teamId.trim() : '';
+  const state = readAxonState();
+
+  let apiKey = '';
+  let credentialName = '';
+  const binding = await axonCredential(ctx);
+  if (binding !== null) {
+    credentialName = binding.payload.name || '';
+    try {
+      const resolved = await binding.credentials.resolve(binding.payload.ref);
+      apiKey = resolved !== undefined ? resolved.value : '';
+    } catch {
+      apiKey = '';
+    }
+  }
+
+  const ready = apiKey !== '' && teamId !== '' && /^https:\/\//i.test(baseUrl);
+  const sessions = state.sessions.map((session) => ({
+    sessionId: session.sessionId,
+    title: session.title || session.sessionId,
+    status: session.status || 'idle',
+    model: 'axon',
+    cwd: baseUrl,
+    updatedAt: session.updatedAt || 0,
+  }));
+
+  return {
+    id: 'axon',
+    name: 'Axon',
+    app: '',
+    installed: ready,
+    running: ready,
+    status: ready ? 'idle' : 'stopped',
+    active: ready
+      ? { sessionId: state.lastSession, title: state.lastReply ? shortTitle(state.lastReply) : '', model: 'axon', cwd: baseUrl, status: 'idle' }
+      : null,
+    sessions,
+    approvals: [],
+    extra: {
+      baseUrl,
+      teamId,
+      credentialName,
+      hasCredential: apiKey !== '',
+      lastSession: state.lastSession,
+      lastRunId: state.lastRunId,
+      lastApproval: state.lastApproval,
+      lastReply: state.lastReply,
+    },
+  };
+}
+
+/** Dispatch a task, or continue/cancel a run that is waiting on an approval. */
+async function axonInvoke(ctx, request) {
+  const settings = readSettings();
+  const configured = settings.axon !== null && typeof settings.axon === 'object' ? settings.axon : {};
+  const baseUrl = String(configured.baseUrl || AXON_DEFAULT_BASE).replace(/\/+$/, '');
+  const teamId = typeof configured.teamId === 'string' ? configured.teamId.trim() : '';
+  const binding = await axonCredential(ctx);
+  if (binding === null) throw new Error('axon-credential-missing');
+  const resolved = await binding.credentials.resolve(binding.payload.ref);
+  if (resolved === undefined || resolved.value === '') throw new Error('axon-credential-missing');
+
+  const body = {
+    team_id: teamId,
+    type: 'agent',
+    task: typeof request.task === 'string' ? request.task : null,
+    session_id: typeof request.sessionId === 'string' && request.sessionId !== '' ? request.sessionId : null,
+    mode: request.mode === 'continue' || request.mode === 'cancel' ? request.mode : 'new',
+    run_id: typeof request.runId === 'string' ? request.runId : null,
+    approved: request.approved !== null && typeof request.approved === 'object' ? request.approved : null,
+  };
+
+  const response = await fetch(`${baseUrl}/invoke/sse`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${resolved.value}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await readResponse(response, 120000, 200000);
+  const parsed = parseAxonStream(text);
+
+  if (parsed.sessionId !== '') {
+    writeAxonState({ lastSession: parsed.sessionId });
+    upsertAxonSession(parsed.sessionId, parsed.reply, parsed.status, typeof request.task === 'string' ? request.task : '');
+  }
+  if (parsed.runId !== '') writeAxonState({ lastRunId: parsed.runId });
+  if (parsed.approval !== '') writeAxonState({ lastApproval: parsed.approval });
+
+  return {
+    status: response.status,
+    sessionId: parsed.sessionId,
+    runId: parsed.runId,
+    approval: parsed.approval,
+    sessionStatus: parsed.status,
+    reply: parsed.reply,
+    raw: text,
+  };
+}
+
+function upsertAxonSession(sessionId, reply, status, task) {
+  const state = readAxonState();
+  const sessions = [...state.sessions];
+  const at = sessions.findIndex((session) => session.sessionId === sessionId);
+  const title = task !== '' ? shortTitle(task) : shortTitle(reply);
+  const row = { sessionId, title, status: status === 'pending_approval' ? 'waiting' : 'idle', updatedAt: Date.now() };
+  if (at >= 0) sessions[at] = { ...sessions[at], ...row };
+  else sessions.unshift(row);
+  writeAxonState({ sessions: sessions.slice(0, 20), lastReply: reply });
+}
+
+/**
+ * Pull the pieces the console needs out of an SSE stream: the reply text, the
+ * session and run ids, and any tool call waiting on a decision.
+ */
+function parseAxonStream(text) {
+  let reply = '';
+  let sessionId = '';
+  let runId = '';
+  let approval = '';
+  let status = '';
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (payload === '' || payload === '[DONE]') continue;
+    let event;
+    try {
+      event = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    if (typeof event.session_id === 'string' && event.session_id !== '') sessionId = event.session_id;
+    if (typeof event.run_id === 'string' && event.run_id !== '') runId = event.run_id;
+    if (typeof event.session_status === 'string' && event.session_status !== '') status = event.session_status;
+    if (event.approval_notice !== null && typeof event.approval_notice === 'object') {
+      const calls = event.approval_notice.call_ids || event.approval_notice.callIds;
+      if (Array.isArray(calls) && calls.length > 0) approval = calls.join(',');
+    }
+    const content = event.task_result && Array.isArray(event.task_result.contents) ? event.task_result.contents : null;
+    if (content !== null) {
+      for (const block of content) {
+        if (block !== null && typeof block === 'object' && typeof block.text === 'string') reply += block.text;
+      }
+    }
+  }
+  return { reply, sessionId, runId, approval, status };
+}
 
 /* ------------------------------------------------------------------ */
 /* credential bindings (API key ↔ runtime ↔ purpose)                   */
@@ -1549,6 +1768,36 @@ export function apply(ctx) {
                   contentType: response.headers.get('content-type') || '',
                   body: text.slice(0, 200000),
                 });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
+            return;
+          }
+          if (action === 'axonConfig') {
+            const next = {
+              ...readSettings(),
+              axon: {
+                teamId: typeof parsed.teamId === 'string' ? parsed.teamId.trim() : '',
+                baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl.trim() : AXON_DEFAULT_BASE,
+              },
+            };
+            writeSettings(next);
+            void refresh();
+            reply(200, { ok: true, axon: next.axon });
+            return;
+          }
+          if (action === 'axonTask') {
+            void (async () => {
+              try {
+                const result = await axonInvoke(ctx, {
+                  task: typeof parsed.task === 'string' ? parsed.task : '',
+                  sessionId: typeof parsed.sessionId === 'string' ? parsed.sessionId : '',
+                  mode: typeof parsed.mode === 'string' ? parsed.mode : 'new',
+                  runId: typeof parsed.runId === 'string' ? parsed.runId : '',
+                  approved: parsed.approved !== null && typeof parsed.approved === 'object' ? parsed.approved : null,
+                });
+                reply(200, { ok: true, ...result });
               } catch (error) {
                 reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
               }

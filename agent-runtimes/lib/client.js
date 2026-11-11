@@ -84,6 +84,25 @@ window.__ModuleLoader__.load({
         'credentials.body': 'Body',
         'credentials.send': 'Send',
         'credentials.fullOutput': 'Full output (up to 200 KB)',
+        'axon.ready': 'Connected',
+        'axon.notReady': 'Not configured',
+        'axon.needCredential': 'Add an API key in Settings → 凭据管理 with its Agent field set to axon, then come back.',
+        'axon.needAgentId': 'Enter the Agent UUID and save.',
+        'axon.teamIdPlaceholder': 'Agent UUID',
+        'axon.baseUrlPlaceholder': 'https://api.aiops.anchnet.com',
+        'axon.save': 'Save',
+        'axon.configSaved': 'Saved.',
+        'axon.taskPlaceholder': 'Your instruction to the Axon agent…',
+        'axon.send': 'Send',
+        'axon.sending': 'Sending…',
+        'axon.resume': 'Resume last',
+        'axon.session': 'Session',
+        'axon.failed': 'Call failed',
+        'axon.approval': 'Waiting on approval:',
+        'axon.approve': 'Approve',
+        'axon.deny': 'Deny',
+        'axon.cancel': 'Cancel',
+        'axon.cancelled': 'Cancelled.',
         'credentials.sending': 'Sending…',
         'credentials.urlRequired': 'Enter a URL first.',
         'credentials.callFailed': 'Call failed',
@@ -198,6 +217,25 @@ window.__ModuleLoader__.load({
         'credentials.body': '请求体',
         'credentials.send': '发送',
         'credentials.fullOutput': '完整输出（最多 200 KB）',
+        'axon.ready': '已连接',
+        'axon.notReady': '未配置',
+        'axon.needCredential': '请先在 设置 → 凭据管理 里新增一个 API Key，Agent 填 axon，然后回到这里。',
+        'axon.needAgentId': '填写 Agent UUID 后保存。',
+        'axon.teamIdPlaceholder': 'Agent UUID',
+        'axon.baseUrlPlaceholder': 'https://api.aiops.anchnet.com',
+        'axon.save': '保存',
+        'axon.configSaved': '已保存。',
+        'axon.taskPlaceholder': '给 Axon Agent 的指令…',
+        'axon.send': '发送',
+        'axon.sending': '发送中…',
+        'axon.resume': '续接上次',
+        'axon.session': 'Session',
+        'axon.failed': '调用失败',
+        'axon.approval': '等待审批：',
+        'axon.approve': '批准',
+        'axon.deny': '拒绝',
+        'axon.cancel': '取消',
+        'axon.cancelled': '已取消。',
         'credentials.sending': '发送中…',
         'credentials.urlRequired': '请先填写 URL。',
         'credentials.callFailed': '调用失败',
@@ -695,6 +733,182 @@ window.__ModuleLoader__.load({
             )),
           ]);
         }),
+      ]);
+    }
+
+    const AXON_CSS = `
+.ar-axon { display: flex; flex-direction: column; gap: 8px; }
+.ar-axonStatus { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--dsw-alias-label-secondary); }
+.ar-axonDot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-status-idle, #9aa0a6); flex: none; }
+.ar-axonDot--on { background: var(--dsw-alias-status-running, #2e7d32); }
+.ar-axonConfig { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); padding: 8px; }
+.ar-axonConfigRow { display: flex; gap: 6px; align-items: center; }
+.ar-axonConfigRow input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; padding: 5px 7px; outline: none; }
+.ar-axonConfigRow input:focus { border-color: var(--dsw-alias-brand-primary); }
+.ar-axonComposer { display: flex; flex-direction: column; gap: 6px; }
+.ar-axonComposer textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12.5px; padding: 7px 9px; outline: none; resize: vertical; min-height: 54px; }
+.ar-axonComposer textarea:focus { border-color: var(--dsw-alias-brand-primary); }
+.ar-axonReply { border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); padding: 8px 10px; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
+.ar-axonMeta { color: var(--dsw-alias-label-secondary); font-size: 11px; }
+.ar-axonSessions { display: flex; flex-direction: column; gap: 4px; }
+.ar-axonSession { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+
+    function AxonCard(props) {
+      const { runtime, now } = props;
+      const extra = runtime.extra !== null && typeof runtime.extra === 'object' ? runtime.extra : {};
+      const [config, setConfig] = useState({ teamId: extra.teamId || '', baseUrl: extra.baseUrl || '' });
+      const [task, setTask] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [result, setResult] = useState(null);
+
+      const ready = runtime.installed === true;
+      const lastSession = extra.lastSession || '';
+
+      const saveConfig = async () => {
+        const response = await storeState.sendAction('axonConfig', 'axon', '', {
+          teamId: config.teamId, baseUrl: config.baseUrl,
+        });
+        if (response && response.ok === true) setResult({ kind: 'info', text: t('axon.configSaved') });
+      };
+
+      const send = async (mode, sessionId, approved) => {
+        if (busy) return;
+        setBusy(true);
+        setResult(null);
+        try {
+          const response = await storeState.sendAction('axonTask', 'axon', '', {
+            task, sessionId, mode, approved: approved || null,
+          });
+          if (response && response.ok === true) {
+            setResult({
+              kind: response.sessionStatus === 'pending_approval' ? 'approval' : 'reply',
+              text: response.reply || '',
+              sessionId: response.sessionId,
+              runId: response.runId,
+              approval: response.approval,
+              status: response.sessionStatus,
+            });
+          } else {
+            setResult({ kind: 'error', text: (response && response.error) || t('axon.failed') });
+          }
+        } catch (error) {
+          setResult({ kind: 'error', text: String(error) });
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      const cancelRun = async (row) => {
+        if (row === null || typeof row.runId !== 'string' || row.runId === '') return;
+        setBusy(true);
+        try {
+          const response = await storeState.sendAction('axonTask', 'axon', '', {
+            task: '', sessionId: row.sessionId, mode: 'cancel', runId: row.runId, approved: null,
+          });
+          if (response && response.ok === true) {
+            setResult({ kind: 'note', text: `${t('axon.cancelled')} ${response.sessionStatus || ''}`.trim() });
+          } else {
+            setResult({ kind: 'error', text: (response && response.error) || t('axon.failed') });
+          }
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      const decide = async (allow) => {
+        if (result === null || typeof result.runId !== 'string' || result.runId === '') return;
+        const approved = {};
+        for (const id of String(result.approval || '').split(',').map((s) => s.trim()).filter(Boolean)) approved[id] = allow;
+        if (Object.keys(approved).length === 0) return;
+        setBusy(true);
+        try {
+          const response = await storeState.sendAction('axonTask', 'axon', '', {
+            task: '', sessionId: result.sessionId, mode: 'continue', runId: result.runId, approved,
+          });
+          if (response && response.ok === true) {
+            setResult({
+              kind: response.sessionStatus === 'pending_approval' ? 'approval' : 'reply',
+              text: response.reply || '',
+              sessionId: response.sessionId,
+              runId: response.runId,
+              approval: response.approval,
+              status: response.sessionStatus,
+            });
+          } else {
+            setResult({ kind: 'error', text: (response && response.error) || t('axon.failed') });
+          }
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      return h('div', { className: 'ar-axon' }, [
+        h('style', { dangerouslySetInnerHTML: { __html: AXON_CSS }, key: 'style' }),
+        h('div', { className: 'ar-axonStatus', key: 'status' }, [
+          h('span', { className: `ar-axonDot ${ready ? 'ar-axonDot--on' : ''}`, key: 'dot' }),
+          ready ? t('axon.ready') : t('axon.notReady'),
+          extra.credentialName !== '' ? h('span', { className: 'ar-axonMeta', key: 'cred' }, `· ${extra.credentialName}`) : null,
+        ]),
+        !ready
+          ? h('div', { className: 'ar-axonConfig', key: 'config' }, [
+              h('div', { className: 'ar-axonMeta', key: 'hint' },
+                extra.hasCredential === false ? t('axon.needCredential') : t('axon.needAgentId')),
+              h('div', { className: 'ar-axonConfigRow', key: 'team' }, [
+                h('input', {
+                  key: 'input', value: config.teamId, placeholder: t('axon.teamIdPlaceholder'),
+                  onChange: (event) => setConfig({ ...config, teamId: event.target.value }),
+                }),
+              ]),
+              h('div', { className: 'ar-axonConfigRow', key: 'base' }, [
+                h('input', {
+                  key: 'input', value: config.baseUrl, placeholder: t('axon.baseUrlPlaceholder'),
+                  onChange: (event) => setConfig({ ...config, baseUrl: event.target.value }),
+                }),
+              ]),
+              h('div', { className: 'ar-crActions', key: 'actions' }, [
+                h('button', { type: 'button', className: 'ar-btn ar-btn--primary', key: 'save', onClick: () => { void saveConfig(); } }, t('axon.save')),
+              ]),
+            ])
+          : h('div', { className: 'ar-axonComposer', key: 'composer' }, [
+              h('textarea', {
+                key: 'textarea', rows: 3, value: task,
+                placeholder: t('axon.taskPlaceholder'),
+                onChange: (event) => setTask(event.target.value),
+              }),
+              h('div', { className: 'ar-crActions', key: 'actions' }, [
+                h('button', {
+                  type: 'button', className: 'ar-btn ar-btn--primary', key: 'send', disabled: busy,
+                  onClick: () => { void send('new', ''); },
+                }, busy ? t('axon.sending') : t('axon.send')),
+                lastSession !== ''
+                  ? h('button', {
+                      type: 'button', className: 'ar-btn', key: 'resume', disabled: busy,
+                      onClick: () => { void send('new', lastSession); },
+                    }, t('axon.resume'))
+                  : null,
+              ]),
+              result !== null && result.kind === 'reply'
+                ? h('div', { className: 'ar-axonReply', key: 'reply' }, result.text)
+                : null,
+              result !== null && result.kind === 'approval'
+                ? h('div', { className: 'ar-axonConfig', key: 'approval' }, [
+                    h('div', { className: 'ar-axonMeta', key: 'meta' }, `${t('axon.approval')} ${result.approval || ''}`),
+                    h('div', { className: 'ar-crActions', key: 'actions' }, [
+                      h('button', { type: 'button', className: 'ar-btn ar-btn--primary', key: 'allow', onClick: () => { void decide(true); } }, t('axon.approve')),
+                      h('button', { type: 'button', className: 'ar-btn', key: 'deny', onClick: () => { void decide(false); } }, t('axon.deny')),
+                      h('button', { type: 'button', className: 'ar-btn', key: 'cancel', onClick: () => { void cancelRun(result); } }, t('axon.cancel')),
+                    ]),
+                  ])
+                : null,
+              result !== null && (result.kind === 'error' || result.kind === 'info' || result.kind === 'note')
+                ? h('div', { className: 'ar-axonMeta', key: 'note' }, result.text)
+                : null,
+              lastSession !== '' ? h('div', { className: 'ar-axonMeta', key: 'session' }, `${t('axon.session')}: ${lastSession}`) : null,
+            ]),
+        Array.isArray(runtime.sessions) && runtime.sessions.length > 0
+          ? h('div', { className: 'ar-axonSessions', key: 'sessions' }, runtime.sessions.slice(0, 5).map((session) => h('div', { className: 'ar-axonSession', key: session.sessionId }, session.title)))
+          : null,
       ]);
     }
 
@@ -1367,14 +1581,16 @@ window.__ModuleLoader__.load({
               h('div', { key: 'body' }, t('empty.body')),
             ])
             : h('div', { className: 'ar-grid', key: 'grid' }, [
-              ...ordered.map((runtime) => h(RuntimeCard, {
-                key: runtime.id, runtime, now,
-                expanded: expanded[runtime.id] === true,
-                sessionTitle: titleOf,
-                onToggle: toggle,
-                onOpen: (target, session) => { void open(target, session); },
-                onInterrupt: (target, session) => { void interrupt(target, session); },
-              })),
+              ...ordered.map((runtime) => (runtime.id === 'axon'
+                ? h(AxonCard, { key: runtime.id, runtime, now })
+                : h(RuntimeCard, {
+                  key: runtime.id, runtime, now,
+                  expanded: expanded[runtime.id] === true,
+                  sessionTitle: titleOf,
+                  onToggle: toggle,
+                  onOpen: (target, session) => { void open(target, session); },
+                  onInterrupt: (target, session) => { void interrupt(target, session); },
+                }))),
               ...absent.map((runtime) => h(RuntimeCard, {
                 key: runtime.id, runtime, now,
                 expanded: false,
