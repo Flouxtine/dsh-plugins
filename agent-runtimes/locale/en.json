@@ -68,7 +68,7 @@
   "action.interceptOff": "Console approvals disabled — DSH approvals use the normal prompt",
   "action.decisionFailed": "Could not submit the decision to {name}",
   "action.decisionSent": "Decision sent to {name}",
-  "approval.needsAccessibility": "Grant DeepSeek Harness Accessibility permission in System Settings to decide these approvals from the panel.",
+  "approval.needsAccessibility": "Grant /usr/bin/osascript Accessibility in System Settings and allow it to control System Events under Automation, so the panel can click for you.",
   "reminder.title": "Approval needed",
   "credentials.nav": "Agent credentials",
   "credentials.title": "Agent credentials",
@@ -132,5 +132,5 @@
   "dispatch.cancel": "Cancel",
   "dispatch.sending": "Sending…",
   "dispatch.sent": "Task sent to {name}. Check the app — it needs Accessibility permission to type.",
-  "dispatch.failed": "Could not send the task to {name}."
+  "dispatch.failed": "Could not send the task to {name}: /usr/bin/osascript needs Accessibility and Automation permission."
 }

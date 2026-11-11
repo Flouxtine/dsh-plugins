@@ -243,7 +243,7 @@ window.__ModuleLoader__.load({
         'dispatch.cancel': '取消',
         'dispatch.sending': '发送中…',
         'dispatch.sent': '已发给 {name}。需要辅助功能权限才能代输入。',
-        'dispatch.failed': '无法发送任务给 {name}。',
+        'dispatch.failed': '无法发送任务给 {name}：需要给 /usr/bin/osascript 开启「辅助功能 + 自动化」权限。',
         'axon.send': '发送',
         'axon.sending': '发送中…',
         'axon.resume': '续接上次',
@@ -306,7 +306,7 @@ window.__ModuleLoader__.load({
         'action.interceptOff': '已关闭控制台审批 — DSH 审批走原有提示',
         'action.decisionFailed': '无法把决定提交给 {name}',
         'action.decisionSent': '已把决定发给 {name}',
-        'approval.needsAccessibility': '在系统设置里给 DeepSeek Harness 开启「辅助功能」权限，才能在这个面板里直接处理这些审批。',
+        'approval.needsAccessibility': '在系统设置里给 /usr/bin/osascript 开启「辅助功能」，并在「自动化」里允许它控制 System Events，才能在这个面板里代点按钮。',
         'reminder.title': '需要审批',
       },
     };
