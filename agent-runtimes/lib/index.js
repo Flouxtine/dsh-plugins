@@ -1873,7 +1873,7 @@ export function apply(ctx) {
             return;
           }
           if (action === 'inspectUi') {
-            if (accessibilityAvailable !== true) {
+            if (accessibilityAvailable !== true && parsed.force !== true) {
               reply(200, { ok: false, error: 'accessibility-denied' });
               return;
             }
@@ -1881,13 +1881,29 @@ export function apply(ctx) {
               try {
                 const script = [
                   'tell application "System Events"',
-                  '  set proc to (first process whose frontmost is true)',
-                  '  set out to "process=" & (name of proc)',
+                  '  set out to ""',
                   '  try',
-                  '    set out to out & " windows=" & ((name of every window of proc) as string)',
+                  '    set proc to (first process whose frontmost is true)',
+                  '    set out to out & "process=" & (name of proc)',
+                  '  on error e',
+                  '    set out to out & "process-error=" & e',
                   '  end try',
                   '  try',
-                  '    set out to out & " buttons=" & ((name of every button of window 1 of proc) as string)',
+                  '    set out to out & " windows=" & ((count of windows of proc) as string)',
+                  '  on error e',
+                  '    set out to out & " windows-error=" & e',
+                  '  end try',
+                  '  try',
+                  '    set out to out & " buttons=" & ((count of buttons of window 1 of proc) as string)',
+                  '  on error e',
+                  '    set out to out & " buttons-error=" & e',
+                  '  end try',
+                  '  try',
+                  '    set x to "abc"',
+                  '    keystroke x',
+                  '    set out to out & " keystroke=ok"',
+                  '  on error e',
+                  '    set out to out & " keystroke-error=" & e',
                   '  end try',
                   '  return out',
                   'end tell',
