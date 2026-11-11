@@ -86,6 +86,10 @@ window.__ModuleLoader__.load({
         'credentials.sending': 'Sending…',
         'credentials.urlRequired': 'Enter a URL first.',
         'credentials.callFailed': 'Call failed',
+        'preset.directory': 'Directory',
+        'preset.register': 'Register',
+        'preset.task': 'Send task',
+        'preset.result': 'Result',
         'credentials.empty': 'No API keys stored yet.',
         'credentials.loading': 'Loading…',
         'credentials.configured': 'configured',
@@ -193,6 +197,10 @@ window.__ModuleLoader__.load({
         'credentials.sending': '发送中…',
         'credentials.urlRequired': '请先填写 URL。',
         'credentials.callFailed': '调用失败',
+        'preset.directory': '看目录',
+        'preset.register': '注册',
+        'preset.task': '发任务',
+        'preset.result': '查结果',
         'credentials.empty': '还没有保存任何 API Key。',
         'credentials.loading': '加载中…',
         'credentials.configured': '已配置',
@@ -815,6 +823,34 @@ window.__ModuleLoader__.load({
       { id: 'dsh', name: 'DeepSeek Harness' },
     ];
 
+    /**
+     * Ready-made calls for the services this console knows about. Clicking one
+     * opens the invoke form pre-filled, so the placeholders can still be edited
+     * before the request goes out.
+     */
+    const PRESET_CALLS = {
+      axon: [
+        { id: 'directory', labelKey: 'preset.directory', method: 'GET', url: 'https://axon-agents.com/api/agents', body: '' },
+        { id: 'register', labelKey: 'preset.register', method: 'POST', url: 'https://axon-agents.com/api/agents', body: [
+          '{',
+          '  "agentId": "my-agent",',
+          '  "name": "My Agent",',
+          '  "capabilities": ["research", "summarization"],',
+          '  "publicKey": "YOUR_AGENT_PUBLIC_KEY",',
+          '  "walletAddress": "YOUR_WALLET_ADDRESS"',
+          '}',
+        ].join('\n') },
+        { id: 'task', labelKey: 'preset.task', method: 'POST', url: 'https://axon-agents.com/api/tasks', body: [
+          '{',
+          '  "from": "YOUR_WALLET_ADDRESS",',
+          '  "to": "my-agent",',
+          '  "task": "Summarize why agent-to-agent payments matter"',
+          '}',
+        ].join('\n') },
+        { id: 'result', labelKey: 'preset.result', method: 'GET', url: 'https://axon-agents.com/api/tasks/TASK_ID', body: '' },
+      ],
+    };
+
     function runtimeNameOf(id) {
       const found = RUNTIME_OPTIONS.find((option) => option.id === id);
       return found !== undefined ? found.name : id;
@@ -1069,6 +1105,10 @@ window.__ModuleLoader__.load({
                   item.purpose !== '' ? h('div', { className: 'ar-crMeta', key: 'purpose' }, item.purpose) : null,
                 ]),
                 h('div', { className: 'ar-crRowMeta', key: 'time' }, formatRelative(item.createdAt, Date.now())),
+                (PRESET_CALLS[item.agent] || []).map((preset) => h('button', {
+                  type: 'button', className: 'ar-linkBtn', key: preset.id,
+                  onClick: () => setInvoke({ id: item.id, url: preset.url, method: preset.method, body: preset.body, result: null }),
+                }, t(preset.labelKey))),
                 h('button', {
                   type: 'button', className: 'ar-linkBtn', key: 'invoke',
                   onClick: () => setInvoke({ id: item.id, url: '', method: 'POST', body: '', result: null }),

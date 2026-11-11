@@ -97,5 +97,9 @@
   "credentials.send": "发送",
   "credentials.sending": "发送中…",
   "credentials.urlRequired": "请先填写 URL。",
-  "credentials.callFailed": "调用失败"
+  "credentials.callFailed": "调用失败",
+  "preset.directory": "看目录",
+  "preset.register": "注册",
+  "preset.task": "发任务",
+  "preset.result": "查结果"
 }

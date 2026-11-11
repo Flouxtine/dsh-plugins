@@ -97,5 +97,9 @@
   "credentials.send": "Send",
   "credentials.sending": "Sending…",
   "credentials.urlRequired": "Enter a URL first.",
-  "credentials.callFailed": "Call failed"
+  "credentials.callFailed": "Call failed",
+  "preset.directory": "Directory",
+  "preset.register": "Register",
+  "preset.task": "Send task",
+  "preset.result": "Result"
 }
