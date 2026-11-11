@@ -3,15 +3,60 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
-    "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+  "description": "A Todoist-style task list for DeepSeek Harness — projects, labels, P1–P4 priorities, recurring tasks, subtasks and smart views.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "todo",
+    "tasks",
+    "notes",
+    "productivity"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flouxtine/dsh-plugins.git",
+    "directory": "quick-notes"
   },
-  "files": ["index.js", "client.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "homepage": "https://github.com/Flouxtine/dsh-plugins/tree/main/quick-notes#readme",
+  "bugs": {
+    "url": "https://github.com/Flouxtine/dsh-plugins/issues"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
+  ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.2"
+  },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax:
+    name: Syntax and manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: false
+
+      - name: Check plugin entry points
+        run: |
+          set -e
+          for file in \
+            agent-runtimes/lib/index.js \
+            agent-runtimes/lib/client.js \
+            agent-workflow-board/lib/index.js \
+            agent-workflow-board/lib/client.js \
+            quick-notes/lib/index.js \
+            quick-notes/lib/client.js
+          do
+            echo "checking $file"
+            node --check "$file"
+          done
+
+      - name: Validate package manifests
+        run: |
+          node -e "
+            const fs = require('node:fs');
+            for (const dir of ['agent-runtimes', 'agent-workflow-board', 'quick-notes']) {
+              const manifest = JSON.parse(fs.readFileSync(dir + '/package.json', 'utf8'));
+              if (manifest.main !== './lib/index.js') throw new Error(dir + ': unexpected main');
+              if (manifest.exports['.'].default !== './lib/index.js') throw new Error(dir + ': unexpected export');
+              for (const key of ['license', 'repository', 'main', 'types', 'files']) {
+                if (manifest[key] === undefined) throw new Error(dir + ': missing ' + key);
+              }
+            }
+            console.log('manifests ok');
+          "

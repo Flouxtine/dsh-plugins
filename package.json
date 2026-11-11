@@ -2,5 +2,13 @@
   "name": "dsh-plugins",
   "private": true,
   "version": "0.0.0",
-  "description": "Personal DeepSeek Harness (DSH) plugin bundles."
+  "description": "Personal DeepSeek Harness (DSH) plugin bundles.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flouxtine/dsh-plugins.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Flouxtine/dsh-plugins/issues"
+  }
 }

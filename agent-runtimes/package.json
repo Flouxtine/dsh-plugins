@@ -20,24 +20,47 @@
     "cursor"
   ],
   "license": "MIT",
-  "engines": {
-    "dsh": ">=0.2.1-rc.2"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flouxtine/dsh-plugins.git",
+    "directory": "agent-runtimes"
   },
+  "homepage": "https://github.com/Flouxtine/dsh-plugins/tree/main/agent-runtimes#readme",
+  "bugs": {
+    "url": "https://github.com/Flouxtine/dsh-plugins/issues"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "icon": "./icon.svg",
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "client.js",
-    "cordis.patch.yml",
-    "locale/*.json",
+    "lib",
+    "locale",
     "icon.svg",
-    "README.md"
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md"
   ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.2"
+  },
   "dsh": {
+    "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
