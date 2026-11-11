@@ -93,6 +93,7 @@ window.__ModuleLoader__.load({
         'axon.save': 'Save',
         'axon.configSaved': 'Saved.',
         'axon.taskPlaceholder': 'Your instruction to the Axon agent…',
+        'axon.taskLabel': 'Instruction',
         'axon.send': 'Send',
         'axon.sending': 'Sending…',
         'axon.resume': 'Resume last',
@@ -226,6 +227,7 @@ window.__ModuleLoader__.load({
         'axon.save': '保存',
         'axon.configSaved': '已保存。',
         'axon.taskPlaceholder': '给 Axon Agent 的指令…',
+        'axon.taskLabel': '指令',
         'axon.send': '发送',
         'axon.sending': '发送中…',
         'axon.resume': '续接上次',
@@ -310,6 +312,18 @@ window.__ModuleLoader__.load({
 .ar-iconBtn:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
 .ar-iconBtn--on { background: var(--dsw-alias-brand-primary); border-color: transparent; color: #fff; }
 .ar-iconBtn--on:hover { background: var(--dsw-alias-brand-primary); color: #fff; }
+.ar-btn:focus-visible, .ar-iconBtn:focus-visible, .ar-linkBtn:focus-visible,
+.ar-crField input:focus-visible, .ar-crField select:focus-visible, .ar-crField textarea:focus-visible,
+.ar-crInlineInput:focus-visible, .ar-axonConfigRow input:focus-visible, .ar-axonComposer textarea:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px;
+}
+@media (forced-colors: active) {
+  .ar-card, .ar-btn, .ar-iconBtn, .ar-approval, .ar-stat, .ar-toast { border: 1px solid CanvasText; }
+  .ar-btn--primary, .ar-iconBtn--on { forced-color-adjust: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ar-card, .ar-toast, .ar-banner { transition: background-color 120ms ease, border-color 120ms ease; }
+}
 
 .ar-btn { appearance: none; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); border-radius: 6px; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .ar-btn:hover { background: var(--dsw-alias-bg-layer-2); }
@@ -329,13 +343,14 @@ window.__ModuleLoader__.load({
 .ar-approvalActions { display: flex; gap: 6px; margin-top: 8px; }
 
 .ar-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 300px) { .ar-stats { grid-template-columns: 1fr; } }
 .ar-stat { border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px; background: var(--dsw-alias-bg-layer-1); padding: 7px 10px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ar-statLabel { color: var(--dsw-alias-label-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-statValue { font-size: 17px; font-weight: 650; line-height: 1.2; }
 .ar-statValue--ok { color: var(--dsw-alias-state-success-primary); }
 .ar-statValue--warn { color: var(--dsw-alias-state-warn-primary); }
 
-.ar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; align-items: start; }
+.ar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; align-items: start; }
 .ar-card { border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .ar-card--absent { opacity: 0.55; }
 .ar-card--error { border-color: var(--dsw-alias-state-error-primary); }
@@ -404,11 +419,12 @@ window.__ModuleLoader__.load({
 `;
 
     const RUNTIME_BADGES = {
-      workbuddy: { letter: 'W', color: '#0EA5E9' },
-      codebuddy: { letter: 'B', color: '#F97316' },
-      codex: { letter: 'X', color: '#10A37F' },
-      cursor: { letter: 'C', color: '#8B5CF6' },
+      workbuddy: { letter: 'W', color: '#0369A1' },
+      codebuddy: { letter: 'B', color: '#C2410C' },
+      codex: { letter: 'X', color: '#0F766E' },
+      cursor: { letter: 'C', color: '#7C3AED' },
       dsh: { letter: 'D', color: '#2F6FED' },
+      axon: { letter: 'A', color: '#A16207' },
     };
 
     /* ---------------------------------------------------------------- */
@@ -689,7 +705,7 @@ window.__ModuleLoader__.load({
     function ApprovalBanner(props) {
       const { approvals, now, titleOf, onReview, onDismiss, onDecide } = props;
       if (approvals.length === 0) return null;
-      return h('div', { className: 'ar-approvals' }, [
+      return h('div', { className: 'ar-approvals', role: 'region', 'aria-label': t('approval.title') }, [
         h('div', { className: 'ar-meta', key: 'head' }, `${t('approval.title')} · ${approvals.length}`),
         approvals.map((row) => {
           const reason = row.runtimeId === 'dsh'
@@ -739,8 +755,8 @@ window.__ModuleLoader__.load({
     const AXON_CSS = `
 .ar-axon { display: flex; flex-direction: column; gap: 8px; }
 .ar-axonStatus { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--dsw-alias-label-secondary); }
-.ar-axonDot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-status-idle, #9aa0a6); flex: none; }
-.ar-axonDot--on { background: var(--dsw-alias-status-running, #2e7d32); }
+.ar-axonDot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); flex: none; }
+.ar-axonDot--on { background: var(--dsw-alias-state-success-primary); }
 .ar-axonConfig { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); padding: 8px; }
 .ar-axonConfigRow { display: flex; gap: 6px; align-items: center; }
 .ar-axonConfigRow input { flex: 1 1 auto; min-width: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; padding: 5px 7px; outline: none; }
@@ -750,6 +766,7 @@ window.__ModuleLoader__.load({
 .ar-axonComposer textarea:focus { border-color: var(--dsw-alias-brand-primary); }
 .ar-axonReply { border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); padding: 8px 10px; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
 .ar-axonMeta { color: var(--dsw-alias-label-secondary); font-size: 11px; }
+.ar-axonLabel { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .ar-axonSessions { display: flex; flex-direction: column; gap: 4px; }
 .ar-axonSession { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
@@ -856,13 +873,15 @@ window.__ModuleLoader__.load({
                 extra.hasCredential === false ? t('axon.needCredential') : t('axon.needAgentId')),
               h('div', { className: 'ar-axonConfigRow', key: 'team' }, [
                 h('input', {
-                  key: 'input', value: config.teamId, placeholder: t('axon.teamIdPlaceholder'),
+                  id: 'ar-axon-team', key: 'input', value: config.teamId, placeholder: t('axon.teamIdPlaceholder'),
+                  'aria-label': t('axon.teamIdPlaceholder'),
                   onChange: (event) => setConfig({ ...config, teamId: event.target.value }),
                 }),
               ]),
               h('div', { className: 'ar-axonConfigRow', key: 'base' }, [
                 h('input', {
-                  key: 'input', value: config.baseUrl, placeholder: t('axon.baseUrlPlaceholder'),
+                  id: 'ar-axon-base', key: 'input', value: config.baseUrl, placeholder: t('axon.baseUrlPlaceholder'),
+                  'aria-label': t('axon.baseUrlPlaceholder'),
                   onChange: (event) => setConfig({ ...config, baseUrl: event.target.value }),
                 }),
               ]),
@@ -871,8 +890,9 @@ window.__ModuleLoader__.load({
               ]),
             ])
           : h('div', { className: 'ar-axonComposer', key: 'composer' }, [
+              h('label', { className: 'ar-axonLabel', htmlFor: 'ar-axon-task', key: 'label' }, t('axon.taskLabel')),
               h('textarea', {
-                key: 'textarea', rows: 3, value: task,
+                id: 'ar-axon-task', key: 'textarea', rows: 3, value: task,
                 placeholder: t('axon.taskPlaceholder'),
                 onChange: (event) => setTask(event.target.value),
               }),
@@ -889,7 +909,7 @@ window.__ModuleLoader__.load({
                   : null,
               ]),
               result !== null && result.kind === 'reply'
-                ? h('div', { className: 'ar-axonReply', key: 'reply' }, result.text)
+                ? h('div', { className: 'ar-axonReply', key: 'reply', role: 'status', 'aria-live': 'polite' }, result.text)
                 : null,
               result !== null && result.kind === 'approval'
                 ? h('div', { className: 'ar-axonConfig', key: 'approval' }, [
@@ -1534,23 +1554,27 @@ window.__ModuleLoader__.load({
               className: `ar-iconBtn${storeState.snapshot.intercept === true ? ' ar-iconBtn--on' : ''}`,
               key: 'intercept',
               title: storeState.snapshot.intercept === true ? t('header.interceptOn') : t('header.intercept'),
+              'aria-label': storeState.snapshot.intercept === true ? t('header.interceptOn') : t('header.intercept'),
               'aria-pressed': storeState.snapshot.intercept === true,
               onClick: () => { void toggleIntercept(); },
             }, h(ShieldIcon, { on: storeState.snapshot.intercept === true })),
             h('button', {
               type: 'button', className: 'ar-iconBtn', key: 'notify',
               title: storeState.notifyEnabled ? t('header.notifyOn') : t('header.notify'),
+              'aria-label': storeState.notifyEnabled ? t('header.notifyOn') : t('header.notify'),
+              'aria-pressed': storeState.notifyEnabled === true,
               onClick: () => { void toggleNotifications(); },
             }, storeState.notifyEnabled ? '🔔' : '🔕'),
             h('button', {
               type: 'button', className: 'ar-iconBtn', key: 'refresh',
-              title: t('header.refresh'), onClick: () => { void storeState.refresh(); },
+              title: t('header.refresh'), 'aria-label': t('header.refresh'),
+              onClick: () => { void storeState.refresh(); },
             }, '⟳'),
           ]),
         ]),
         h('div', { className: 'ar-scroll', key: 'scroll' }, [
           storeState.message !== null
-            ? h('div', { className: 'ar-message', key: 'message' }, storeState.message)
+            ? h('div', { className: 'ar-message', key: 'message', role: 'status', 'aria-live': 'polite' }, storeState.message)
             : null,
           h('div', { className: 'ar-stats', key: 'stats' }, [
             h('div', { className: 'ar-stat', key: 'running' }, [
@@ -1618,7 +1642,7 @@ window.__ModuleLoader__.load({
       if (reminder === null) return null;
       return h('div', { className: 'ar-toastWrap' }, [
         h('style', { dangerouslySetInnerHTML: { __html: TOAST_CSS }, key: 'style' }),
-        h('div', { className: 'ar-toast', key: 'toast' }, [
+        h('div', { className: 'ar-toast', key: 'toast', role: 'status', 'aria-live': 'polite' }, [
           h('div', { className: 'ar-toastHead', key: 'head' }, [
             h('div', { key: 'text' }, [
               h('div', { className: 'ar-toastTitle', key: 'title' }, `${t('reminder.title')} · ${reminder.runtimeName}`),

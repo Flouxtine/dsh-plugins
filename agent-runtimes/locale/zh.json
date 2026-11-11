@@ -123,5 +123,6 @@
   "axon.approve": "批准",
   "axon.deny": "拒绝",
   "axon.cancel": "取消",
-  "axon.cancelled": "已取消。"
+  "axon.cancelled": "已取消。",
+  "axon.taskLabel": "指令"
 }

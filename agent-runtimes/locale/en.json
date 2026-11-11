@@ -123,5 +123,6 @@
   "axon.approve": "Approve",
   "axon.deny": "Deny",
   "axon.cancel": "Cancel",
-  "axon.cancelled": "Cancelled."
+  "axon.cancelled": "Cancelled.",
+  "axon.taskLabel": "Instruction"
 }
