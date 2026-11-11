@@ -46,6 +46,7 @@ const DECISION_TIMEOUT_MS = 5 * 60 * 1000;
 const RECENT_ACTIVITY_MS = 10 * 60 * 1000;
 const TODO_ACTIVE_MS = 30 * 60 * 1000;
 const STATUS_DEBOUNCE_MS = 30 * 1000;
+const ACCESSIBILITY_PROBE_MS = 5 * 60 * 1000;
 
 /**
  * External agent apps expose no approval API, so the console drives their
@@ -130,7 +131,7 @@ let accessibilityCheckedAt = 0;
 
 /** Whether macOS lets this process read another app's UI elements. */
 async function probeAccessibility(now) {
-  if (accessibilityAvailable !== undefined && now - accessibilityCheckedAt < 30000) return accessibilityAvailable;
+  if (accessibilityAvailable !== undefined && now - accessibilityCheckedAt < ACCESSIBILITY_PROBE_MS) return accessibilityAvailable;
   try {
     const { stdout } = await execFileAsync(
       '/usr/bin/osascript',
@@ -294,6 +295,19 @@ async function loadSqlite() {
     sqliteModule = null;
   }
   return sqliteModule;
+}
+
+/** Memoised SQLite read: the app rewrites the DB only when its state changes. */
+const sqliteCache = new Map();
+
+async function cachedQuerySqlite(path, sql) {
+  const stamp = mtimeMs(path);
+  const cached = sqliteCache.get(path);
+  if (cached !== undefined && cached.stamp === stamp) return cached.rows;
+  const rows = await querySqlite(path, sql);
+  sqliteCache.set(path, { stamp, rows });
+  if (sqliteCache.size > 16) sqliteCache.delete(sqliteCache.keys().next().value);
+  return rows;
 }
 
 async function querySqlite(path, sql) {
@@ -644,7 +658,7 @@ async function collectCodeBuddy() {
   let mode = '';
   if (pathExists(paths.globalState)) {
     try {
-      const rows = await querySqlite(paths.globalState, "SELECT value FROM ItemTable WHERE key = 'CodeBuddy.settings'");
+      const rows = await cachedQuerySqlite(paths.globalState, "SELECT value FROM ItemTable WHERE key = 'CodeBuddy.settings'");
       if (rows.length > 0 && typeof rows[0].value === 'string') {
         const settings = JSON.parse(rows[0].value);
         const chat = settings !== null && typeof settings === 'object' ? settings.chat : null;
@@ -1257,6 +1271,15 @@ export const inject = ['webServer', 'sessions', 'agents', 'credentials'];
 /* ------------------------------------------------------------------ */
 
 const AXON_DEFAULT_BASE = 'https://api.aiops.anchnet.com';
+
+/** An active board ticks quickly; a quiet one can afford to breathe. */
+function pollIntervalFor(snapshot) {
+  if (snapshot === null || typeof snapshot !== 'object') return POLL_MS;
+  const runtimes = Array.isArray(snapshot.runtimes) ? snapshot.runtimes : [];
+  const busy = runtimes.some((runtime) => runtime.status === 'running' || runtime.status === 'waiting' || runtime.status === 'error');
+  const pending = (snapshot.approvals || []).length > 0;
+  return busy || pending ? POLL_MS : POLL_MS * 3;
+}
 const AXON_STATE_FILE = 'agent-runtimes-axon.json';
 
 function axonStatePath() {
@@ -1607,8 +1630,9 @@ export function apply(ctx) {
   }), 'agent-runtimes: approval intercept');
 
   const refresh = async () => {
-    if (collecting) return;
+    if (collecting || polling) return;
     collecting = true;
+    polling = true;
     try {
       const next = await collectSnapshot(ctx);
 
@@ -1671,13 +1695,22 @@ export function apply(ctx) {
       }
       next.activity = activity.slice();
       snapshot = next;
+      arm(pollIntervalFor(next));
     } finally {
       collecting = false;
+      polling = false;
     }
   };
 
-  const timer = setInterval(() => { void refresh(); }, POLL_MS);
-  ctx.effect(() => () => clearInterval(timer), 'agent-runtimes: poll');
+  // A quiet board (nothing running, waiting or erroring) is polled far less
+  // often than an active one, so an idle console costs almost nothing.
+  let timer;
+  let polling = false;
+  const arm = (ms) => {
+    if (timer !== undefined) clearInterval(timer);
+    timer = setInterval(() => { void refresh(); }, ms);
+  };
+  ctx.effect(() => () => { if (timer !== undefined) clearInterval(timer); }, 'agent-runtimes: poll');
   void refresh();
 
   const routes = [
