@@ -852,13 +852,13 @@ window.__ModuleLoader__.load({
       axon: [
         {
           id: 'invoke', labelKey: 'preset.invoke', method: 'POST',
-          url: 'https://<BASE_URL>/invoke/sse',
+          url: 'https://api.aiops.anchnet.com/invoke/sse',
           body: [
             '{',
+            '  "team_id": "<AGENT_UUID>",',
             '  "type": "agent",',
             '  "task": "Summarize why agent-to-agent payments matter",',
-            '  "team_id": "<AGENT_ID>",',
-            '  "session_id": "<your-session-id>"',
+            '  "session_id": null',
             '}',
           ].join('\n'),
         },
