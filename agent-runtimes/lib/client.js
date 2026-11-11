@@ -855,7 +855,7 @@ window.__ModuleLoader__.load({
           url: 'https://api.aiops.anchnet.com/invoke/sse',
           body: [
             '{',
-            '  "team_id": "<AGENT_UUID>",',
+            '  "team_id": "491f51bf-6b34-4c89-ba52-bc89054ca0c5",',
             '  "type": "agent",',
             '  "task": "Summarize why agent-to-agent payments matter",',
             '  "session_id": null',
