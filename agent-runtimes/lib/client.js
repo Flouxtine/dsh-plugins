@@ -94,6 +94,14 @@ window.__ModuleLoader__.load({
         'axon.configSaved': 'Saved.',
         'axon.taskPlaceholder': 'Your instruction to the Axon agent…',
         'axon.taskLabel': 'Instruction',
+        'dispatch.action': 'Send task',
+        'dispatch.label': 'Task for {name}',
+        'dispatch.placeholder': 'Type a task and press Send — it is typed into the app.',
+        'dispatch.send': 'Send',
+        'dispatch.cancel': 'Cancel',
+        'dispatch.sending': 'Sending…',
+        'dispatch.sent': 'Task sent to {name}. Check the app — it needs Accessibility permission to type.',
+        'dispatch.failed': 'Could not send the task to {name}.',
         'axon.send': 'Send',
         'axon.sending': 'Sending…',
         'axon.resume': 'Resume last',
@@ -228,6 +236,14 @@ window.__ModuleLoader__.load({
         'axon.configSaved': '已保存。',
         'axon.taskPlaceholder': '给 Axon Agent 的指令…',
         'axon.taskLabel': '指令',
+        'dispatch.action': '下发任务',
+        'dispatch.label': '给 {name} 的任务',
+        'dispatch.placeholder': '输入任务后点发送 —— 会替你打进应用里。',
+        'dispatch.send': '发送',
+        'dispatch.cancel': '取消',
+        'dispatch.sending': '发送中…',
+        'dispatch.sent': '已发给 {name}。需要辅助功能权限才能代输入。',
+        'dispatch.failed': '无法发送任务给 {name}。',
         'axon.send': '发送',
         'axon.sending': '发送中…',
         'axon.resume': '续接上次',
@@ -766,6 +782,9 @@ window.__ModuleLoader__.load({
 .ar-axonComposer textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12.5px; padding: 7px 9px; outline: none; resize: vertical; min-height: 54px; }
 .ar-axonComposer textarea:focus { border-color: var(--dsw-alias-brand-primary); }
 .ar-axonReply { border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); padding: 8px 10px; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 240px; overflow: auto; }
+.ar-dispatch { border-top: 1px solid var(--dsw-alias-border-l1); margin: 0 12px 10px; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ar-dispatch textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12.5px; padding: 7px 9px; outline: none; resize: vertical; min-height: 46px; }
+.ar-dispatch textarea:focus { border-color: var(--dsw-alias-brand-primary); }
 .ar-axonMeta { color: var(--dsw-alias-label-secondary); font-size: 11px; }
 .ar-axonLabel { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .ar-axonSessions { display: flex; flex-direction: column; gap: 4px; }
@@ -935,6 +954,9 @@ window.__ModuleLoader__.load({
 
     function RuntimeCard(props) {
       const { runtime, now, expanded, sessionTitle, onToggle, onOpen, onInterrupt } = props;
+      const [composerOpen, setComposerOpen] = useState(false);
+      const [task, setTask] = useState('');
+      const [busy, setBusy] = useState(false);
       const status = runtimeStatusKey(runtime.status);
       const sessions = Array.isArray(runtime.sessions) ? runtime.sessions : [];
       const approvals = Array.isArray(runtime.approvals) ? runtime.approvals : [];
@@ -951,6 +973,23 @@ window.__ModuleLoader__.load({
         const when = formatRelative(active.lastActivityAt || active.updatedAt, now);
         if (when !== '') meta.push(when);
       }
+
+      const dispatchable = runtime.id !== 'dsh' && runtime.id !== 'axon' && runtime.installed === true;
+
+      const sendTask = async () => {
+        if (busy || task.trim() === '') return;
+        setBusy(true);
+        try {
+          const response = await storeState.sendAction('dispatchTask', runtime.id, '', { task });
+          setComposerOpen(false);
+          setTask('');
+          storeState.showMessage(response && response.ok === true
+            ? t('dispatch.sent', { name: runtime.name })
+            : t('dispatch.failed', { name: runtime.name }));
+        } finally {
+          setBusy(false);
+        }
+      };
 
       const rows = expanded
         ? sessions.slice(0, 8).map((session) => {
@@ -997,6 +1036,23 @@ window.__ModuleLoader__.load({
             ])
             : null,
         ]),
+        dispatchable && composerOpen
+          ? h('div', { className: 'ar-dispatch', key: 'dispatch' }, [
+              h('label', { className: 'ar-axonLabel', htmlFor: `ar-dispatch-${runtime.id}`, key: 'label' }, t('dispatch.label', { name: runtime.name })),
+              h('textarea', {
+                id: `ar-dispatch-${runtime.id}`, key: 'textarea', rows: 2, value: task,
+                placeholder: t('dispatch.placeholder'),
+                onChange: (event) => setTask(event.target.value),
+              }),
+              h('div', { className: 'ar-crActions', key: 'actions' }, [
+                h('button', { type: 'button', className: 'ar-btn', key: 'cancel', onClick: () => setComposerOpen(false) }, t('dispatch.cancel')),
+                h('button', {
+                  type: 'button', className: 'ar-btn ar-btn--primary', key: 'send', disabled: busy,
+                  onClick: () => { void sendTask(); },
+                }, busy ? t('dispatch.sending') : t('dispatch.send')),
+              ]),
+            ])
+          : null,
         notInstalled
           ? null
           : h('div', { className: 'ar-cardFoot', key: 'foot' }, [
@@ -1008,6 +1064,13 @@ window.__ModuleLoader__.load({
                 h('span', { className: `ar-chevron${expanded ? ' ar-chevron--open' : ''}`, key: 'chevron' }, '›'),
                 h('span', { key: 'label' }, t('runtime.sessions', { count: sessions.length })),
               ])
+              : null,
+            dispatchable
+              ? h('button', {
+                type: 'button', className: 'ar-linkBtn', key: 'dispatch',
+                'aria-expanded': composerOpen === true,
+                onClick: () => setComposerOpen(!composerOpen),
+              }, t('dispatch.action'))
               : null,
             h('span', { className: 'ar-spacer', key: 'spacer' }),
             active !== null && active.sessionId

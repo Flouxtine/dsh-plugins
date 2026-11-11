@@ -124,5 +124,13 @@
   "axon.deny": "Deny",
   "axon.cancel": "Cancel",
   "axon.cancelled": "Cancelled.",
-  "axon.taskLabel": "Instruction"
+  "axon.taskLabel": "Instruction",
+  "dispatch.action": "Send task",
+  "dispatch.label": "Task for {name}",
+  "dispatch.placeholder": "Type a task and press Send — it is typed into the app.",
+  "dispatch.send": "Send",
+  "dispatch.cancel": "Cancel",
+  "dispatch.sending": "Sending…",
+  "dispatch.sent": "Task sent to {name}. Check the app — it needs Accessibility permission to type.",
+  "dispatch.failed": "Could not send the task to {name}."
 }

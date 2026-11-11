@@ -124,5 +124,13 @@
   "axon.deny": "拒绝",
   "axon.cancel": "取消",
   "axon.cancelled": "已取消。",
-  "axon.taskLabel": "指令"
+  "axon.taskLabel": "指令",
+  "dispatch.action": "下发任务",
+  "dispatch.label": "给 {name} 的任务",
+  "dispatch.placeholder": "输入任务后点发送 —— 会替你打进应用里。",
+  "dispatch.send": "发送",
+  "dispatch.cancel": "取消",
+  "dispatch.sending": "发送中…",
+  "dispatch.sent": "已发给 {name}。需要辅助功能权限才能代输入。",
+  "dispatch.failed": "无法发送任务给 {name}。"
 }

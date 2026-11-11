@@ -75,6 +75,28 @@ const EXTERNAL_APPROVAL_TARGETS = {
   },
 };
 
+/**
+ * Type a task into another app's prompt and submit it. The local agent apps
+ * expose no task API, so this is the only channel they offer.
+ */
+function buildDispatchScript(target, task) {
+  const escaped = String(task)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, '\\n');
+  return [
+    `tell application "${target.app}" to activate`,
+    'delay 0.8',
+    'tell application "System Events"',
+    '  set frontmost of (first process whose frontmost is true) to true',
+    '  delay 0.3',
+    `  keystroke "${escaped}"`,
+    '  delay 0.2',
+    '  key code 36',
+    'end tell',
+  ].join('\n');
+}
+
 function buildApprovalScript(target, allow) {
   const labels = (allow ? target.allow : target.reject).map((label) => `"${label}"`).join(', ');
   const key = allow ? 'y' : 'n';
@@ -1826,6 +1848,28 @@ export function apply(ctx) {
               : 'unavailable';
             settle(decisionId, outcome);
             reply(200, { ok: true, outcome });
+            return;
+          }
+          if (action === 'dispatchTask') {
+            const runtimeId = typeof parsed.runtimeId === 'string' ? parsed.runtimeId : '';
+            const task = typeof parsed.task === 'string' ? parsed.task : '';
+            const target = EXTERNAL_APPROVAL_TARGETS[runtimeId];
+            if (target === undefined || task.trim() === '') {
+              reply(200, { ok: false, error: 'unsupported-runtime' });
+              return;
+            }
+            if (accessibilityAvailable !== true) {
+              reply(200, { ok: false, error: 'accessibility-denied' });
+              return;
+            }
+            void (async () => {
+              try {
+                await execFileAsync('/usr/bin/osascript', ['-e', buildDispatchScript(target, task)], { timeout: 30000 });
+                reply(200, { ok: true });
+              } catch (error) {
+                reply(200, { ok: false, error: error && error.message ? error.message : String(error) });
+              }
+            })();
             return;
           }
           if (action === 'inspectUi') {
