@@ -5,8 +5,10 @@ Live multi-agent workflow board for [DeepSeek Harness](https://github.com/deepse
 One panel, four views over the same multi-agent workspace:
 
 - **Overview** — workspace totals (sessions, agents, running, tokens, workflow runs), the
-  lead Session card (title, status, model route, token usage, duration, agent count) and a
-  recent-activity feed assembled from session updates and the subagent catalog.
+  lead Session card (title, status, model route, token usage, duration, agent count), a
+  **pending-approval gate** card listing every Session waiting on a human decision (tool,
+  reason, jump into the Session), and a recent-activity feed assembled from session updates
+  and the subagent catalog.
 - **Graph** — the session lineage (`Workspace → Lead → members → grandchildren`) as a live
   agent graph with status pills, model routes, token usage and turn duration. Two modes:
   **Canvas** lays the lineage out as stage lanes (one column per generation, each with its own
@@ -16,14 +18,22 @@ One panel, four views over the same multi-agent workspace:
   last activity, session id with copy) and the 💬 button opens that conversation (subagents in
   the right sidebar, other sessions in the main view). Very narrow containers fall back to an
   indented list.
+- **Manual arrangement** — in Canvas mode drag a stage header onto another header to reorder
+  the columns, or drag an agent card onto another stage to reassign it; the drawer also offers
+  one-click stage buttons. The arrangement is stored in this browser and **Reset
+  arrangement** restores the automatic generation layout. Sessions with a pending approval
+  carry a 🔒 gate badge on their card and in the drawer.
 - **Timeline** — durable workflow runs reconstructed from the host's `workflow/*` engine
   events (`workflow/start`, `phase`, `log`, `agent-start`, `agent-end`, `end`), grouped into
   phase stations. Each run expands into a summary (agents, done/running/failed, token total)
   and one row per agent with its status, model, tokens and duration read from that child
-  Session's projections; the 💬 button jumps straight into the agent conversation. Below the
-  runs, an agent-spawning rail derived from the subagent catalog keeps the view useful even
-  with no recorded run. Runs are persisted under `~/.dsh`, so history survives a restart; a
-  lost `workflow/end` is resolved by a staleness sweep.
+  Session's projections; the 💬 button jumps straight into the agent conversation. Repeated
+  `(phase, label)` pairs inside one run are tagged `↻ N`, and a run name that appears more
+  than once is numbered as an attempt. **Compare runs** (2+ runs) selects two of them and
+  shows a side-by-side table of status, agent counts by status, phases and duration. Below
+  the runs, an agent-spawning rail derived from the subagent catalog keeps the view useful
+  even with no recorded run. Runs are persisted under `~/.dsh`, so history survives a
+  restart; a lost `workflow/end` is resolved by a staleness sweep.
 - **Team** — the Agent Team roster and shared task board read from the lead Session's
   `agentTeam` projection, with per-member live status, model route, and task
   ownership / blocker / write-scope facts. Without a Team record it falls back to the

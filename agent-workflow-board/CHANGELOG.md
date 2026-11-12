@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-12
+
+### Added
+
+- **Manual stage arrangement** in Canvas mode: drag a stage header to reorder columns or an
+  agent card onto another stage to reassign it, plus one-click stage buttons in the node
+  drawer. The arrangement persists in this browser and can be reset.
+- **Approval gates**: Sessions waiting on a human decision show a 🔒 badge on their graph
+  card, and the Overview gains a pending-approvals card with tool, reason and a jump into
+  the Session.
+- **Run comparison**: pick two workflow runs and compare status, agent counts by status,
+  phases and duration side by side.
+- **Retry markers**: repeated `(phase, label)` pairs inside a run are tagged with their
+  attempt count, and runs sharing a name are numbered as attempts.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added

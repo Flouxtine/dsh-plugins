@@ -123,6 +123,29 @@ window.__ModuleLoader__.load({
         'drawer.noChildren': 'None',
         'drawer.workspaceNode': 'Workspace',
         'drawer.noModel': 'No model route',
+        'drawer.stage': 'Stage',
+        'approval.title': 'Pending approvals',
+        'approval.empty': 'No pending approvals.',
+        'approval.tool': 'Tool',
+        'approval.reason': 'Reason',
+        'approval.gate': 'Approval pending',
+        'approval.open': 'Open session',
+        'compare.title': 'Compare runs',
+        'compare.hint': 'Pick two runs to compare',
+        'compare.metric': 'Metric',
+        'compare.runA': 'Run A',
+        'compare.runB': 'Run B',
+        'compare.status': 'Status',
+        'compare.agents': 'Agents',
+        'compare.tokens': 'Tokens',
+        'compare.duration': 'Duration',
+        'compare.phases': 'Phases',
+        'compare.clear': 'Clear selection',
+        'compare.close': 'Close comparison',
+        'retry.times': 'retry ×{count}',
+        'retry.attempt': 'Attempt {n}',
+        'stage.reset': 'Reset arrangement',
+        'stage.hint': 'Drag a stage header to reorder columns, or drag an agent card onto another stage. Saved in this browser.',
         'timeline.agentRail': 'Agent spawning',
         'timeline.agentRailEmpty': 'No subagent has been spawned in this workspace yet.',
         'timeline.runSection': 'Workflow runs',
@@ -242,6 +265,29 @@ window.__ModuleLoader__.load({
         'drawer.noChildren': '无',
         'drawer.workspaceNode': '工作区',
         'drawer.noModel': '尚未选择模型',
+        'drawer.stage': '阶段',
+        'approval.title': '待审批卡点',
+        'approval.empty': '暂无待审批。',
+        'approval.tool': '工具',
+        'approval.reason': '原因',
+        'approval.gate': '待审批',
+        'approval.open': '打开会话',
+        'compare.title': '运行对比',
+        'compare.hint': '选择两个运行进行对比',
+        'compare.metric': '指标',
+        'compare.runA': '运行 A',
+        'compare.runB': '运行 B',
+        'compare.status': '状态',
+        'compare.agents': '子代理',
+        'compare.tokens': 'Token',
+        'compare.duration': '耗时',
+        'compare.phases': '阶段数',
+        'compare.clear': '清除选择',
+        'compare.close': '关闭对比',
+        'retry.times': '重试 ×{count}',
+        'retry.attempt': '第 {n} 次尝试',
+        'stage.reset': '重置编排',
+        'stage.hint': '拖动阶段标题可排序列，拖动代理卡片到其它阶段可重新分配；更改保存在当前浏览器。',
         'timeline.agentRail': '代理派生',
         'timeline.agentRailEmpty': '该工作区还没有派生过子代理。',
         'timeline.runSection': '工作流运行',
@@ -341,6 +387,11 @@ window.__ModuleLoader__.load({
       '.awb-stageMeta{font-size:10px;color:var(--dsw-alias-label-secondary);display:flex;gap:6px;flex-wrap:wrap;font-variant-numeric:tabular-nums}',
       '.awb-stageBar{height:3px;border-radius:2px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;display:flex}',
       '.awb-stageBar i{display:block;height:100%}',
+      '.awb-stageDrop{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-1)}',
+      '.awb-stageHint{flex:none;padding:5px 16px 0;font-size:10.5px;color:var(--dsw-alias-label-secondary)}',
+      '.awb-column{position:absolute;top:0;bottom:0}',
+      '.awb-columnZone{position:absolute;top:0;bottom:0;border-radius:12px}',
+      '.awb-columnZone.awb-stageDrop{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 8%,transparent)}',
       '.awb-canvasWrap{height:100%;overflow:auto}',
       '.awb-canvas{position:relative;transform-origin:0 0}',
       '.awb-toolbarSep{width:1px;height:18px;background:var(--dsw-alias-border-l2);margin:0 2px;flex:none}',
@@ -365,6 +416,8 @@ window.__ModuleLoader__.load({
       '.awb-drawerActions{display:flex;gap:6px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--dsw-alias-border-l1);flex:none}',
       '.awb-miniBtn{border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;line-height:18px;padding:4px 9px;cursor:pointer}',
       '.awb-miniBtn:hover{background:var(--dsw-alias-bg-layer-2)}',
+      '.awb-miniBtnActive{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-base);border-color:transparent}',
+      '.awb-stageButtons{display:flex;gap:4px;flex-wrap:wrap}',
       '.awb-sectionLabel{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);letter-spacing:0.04em;text-transform:uppercase;margin:12px 0 5px}',
       /* timeline */
       '.awb-run{border:1px solid var(--dsw-alias-border-l1);border-radius:13px;background:var(--dsw-alias-bg-layer-1);margin-bottom:11px;overflow:hidden}',
@@ -374,6 +427,13 @@ window.__ModuleLoader__.load({
       '.awb-runMeta{font-size:10.5px;color:var(--dsw-alias-label-secondary);font-family:ui-monospace,monospace;white-space:nowrap;font-variant-numeric:tabular-nums}',
       '.awb-runBody{border-top:1px solid var(--dsw-alias-border-l1);padding:11px 13px}',
       '.awb-runSummary{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;margin-bottom:10px}',
+      '.awb-btnActive{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}',
+      '.awb-compare{border:1px solid var(--dsw-alias-border-l1);border-radius:13px;background:var(--dsw-alias-bg-layer-1);padding:11px 13px;margin-bottom:12px}',
+      '.awb-compareHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}',
+      '.awb-compareGrid{display:grid;grid-template-columns:minmax(76px,auto) 1fr 1fr;gap:5px 10px;font-size:12px}',
+      '.awb-compareMetric{color:var(--dsw-alias-label-secondary)}',
+      '.awb-compareCell{min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}',
+      '.awb-compareHeadCell{font-weight:650;color:var(--dsw-alias-label-primary)}',
       '.awb-station{margin-bottom:13px}',
       '.awb-station:last-child{margin-bottom:0}',
       '.awb-stationHead{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:650;margin-bottom:7px}',
@@ -654,6 +714,7 @@ window.__ModuleLoader__.load({
     }
 
     const EMPTY_SNAPSHOT = { ids: [], byId: {}, phase: 'pending', projectionsBySession: {} };
+    const EMPTY_STATUS_MAP = new Map();
 
     /**
      * Merge Host session rows with the Client store snapshot. The Client row wins
@@ -694,6 +755,53 @@ window.__ModuleLoader__.load({
         if (row !== undefined) row.values = storeProjections[id].values || row.values;
       }
       return { ids: Object.keys(byId), byId, phase: 'ready', projectionsBySession };
+    }
+
+    const STAGE_STORE_KEY = 'dsh.local.agent-workflow-board.stages.v1';
+
+    /** Manual stage arrangement: column order plus per-Session stage overrides. */
+    function loadStagePrefs() {
+      try {
+        const raw = localStorage.getItem(STAGE_STORE_KEY);
+        if (raw !== null) {
+          const parsed = JSON.parse(raw);
+          if (parsed !== null && typeof parsed === 'object') {
+            return {
+              order: Array.isArray(parsed.order) ? parsed.order.filter((value) => typeof value === 'number') : [],
+              overrides: parsed.overrides !== null && typeof parsed.overrides === 'object' ? parsed.overrides : {},
+            };
+          }
+        }
+      } catch {
+        // Unreadable storage falls back to the automatic layout.
+      }
+      return { order: [], overrides: {} };
+    }
+
+    function saveStagePrefs(prefs) {
+      try {
+        localStorage.setItem(STAGE_STORE_KEY, JSON.stringify(prefs));
+      } catch {
+        // Storage can be unavailable; the arrangement stays in memory.
+      }
+    }
+
+    /** True when a Session has an approval waiting on a human decision. */
+    function pendingApprovalOf(statusMap, sessionId) {
+      const status = statusMap instanceof Map ? statusMap.get(sessionId) : undefined;
+      const interaction = status ? status.pendingInteraction : undefined;
+      return interaction !== undefined && interaction.kind === 'approval'
+        ? interaction
+        : undefined;
+    }
+
+    /** DataTransfer.types is array-like; use whichever membership test it offers. */
+    function hasDragType(event, type) {
+      const types = event.dataTransfer.types;
+      if (types === undefined || types === null) return false;
+      if (typeof types.includes === 'function') return types.includes(type);
+      if (typeof types.contains === 'function') return types.contains(type);
+      return Array.from(types).indexOf(type) !== -1;
     }
 
     /** Open one Session: subagents open in the right sidebar, others in the main view. */
@@ -753,10 +861,33 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function OverviewView(props) {
-      const { leadSessionId, snapshot, openSession, t, now, runs, runCount, emptyHint } = props;
+      const { leadSessionId, snapshot, statusMap, openSession, t, now, runs, runCount, emptyHint } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const stats = useMemo(() => summarize(lineage, now), [lineage, now]);
       const activity = useMemo(() => collectActivity(lineage, 12), [lineage]);
+      const approvals = useMemo(() => {
+        const found = [];
+        if (statusMap instanceof Map) {
+          const locale = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+          for (const [sessionId, status] of statusMap) {
+            const interaction = status !== undefined && status !== null ? status.pendingInteraction : undefined;
+            if (interaction !== undefined && interaction.kind === 'approval') {
+              const display = interaction.displayReason;
+              const localized = typeof display === 'string'
+                ? display
+                : (display !== undefined && display !== null && typeof display === 'object'
+                  ? (display[locale] || display.en || '')
+                  : '');
+              found.push({
+                sessionId,
+                toolName: interaction.toolName || '—',
+                reason: localized || interaction.reason || '',
+              });
+            }
+          }
+        }
+        return found;
+      }, [statusMap]);
       const lead = leadSessionId !== '' ? lineage.byId[leadSessionId] : undefined;
       const leadInfo = lead ? nodeInfo(lead, now) : undefined;
       const leadStatus = lead ? statusOf(lead) : 'idle';
@@ -813,6 +944,30 @@ window.__ModuleLoader__.load({
                   ]),
                 ])
                 : null,
+              h('div', { className: 'awb-card', key: 'approvals' }, [
+                h('div', { className: 'awb-sectionTitle' }, [
+                  '🔒',
+                  t('approval.title'),
+                  h('span', { className: 'awb-count', key: 'count' }, String(approvals.length)),
+                ]),
+                approvals.length === 0
+                  ? h('div', { className: 'awb-meta', key: 'empty' }, t('approval.empty'))
+                  : approvals.map((item) => {
+                    const rec = lineage.byId[item.sessionId];
+                    return h('div', { className: 'awb-member', key: item.sessionId }, [
+                      h('span', { className: 'awb-dot awb-dot--waiting', key: 'dot' }),
+                      h('span', { className: 'awb-memberName', title: displayTitle(rec), key: 'name' },
+                        displayTitle(rec) || item.sessionId),
+                      h('span', { className: 'awb-tag', key: 'tool' }, item.toolName),
+                      item.reason ? h('span', { className: 'awb-tag', title: item.reason, key: 'reason' }, item.reason) : null,
+                      h('button', {
+                        type: 'button', className: 'awb-nodeOpen', key: 'open',
+                        title: t('approval.open'), 'aria-label': t('approval.open'),
+                        onClick: () => openSession(item.sessionId),
+                      }, t('approval.open')),
+                    ]);
+                  }),
+              ]),
               h('div', { className: 'awb-sectionTitle', key: 'activityTitle' }, [
                 t('overview.activity'),
                 h('span', { className: 'awb-count', key: 'count' }, String(activity.length)),
@@ -873,7 +1028,7 @@ window.__ModuleLoader__.load({
     }
 
     function NodeCard(props) {
-      const { node, info, status, current, t, onOpen, onSelect } = props;
+      const { node, info, status, current, t, onOpen, onSelect, draggable, onDragStart, gate } = props;
       if (node.kind === 'workspace') {
         return h('div', {
           className: 'awb-node awb-nodeWorkspace',
@@ -897,6 +1052,8 @@ window.__ModuleLoader__.load({
         role: 'button',
         tabIndex: 0,
         title: info.label,
+        draggable,
+        onDragStart,
         onClick: () => onSelect(node.id),
         onKeyDown: (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -921,6 +1078,7 @@ window.__ModuleLoader__.load({
             h('span', { className: 'awb-pillText', key: 'pilltext' }, t(`status.${status}`)),
           ]),
           current ? h('span', { className: 'awb-tag', key: 'current' }, t('graph.current')) : null,
+          gate ? h('span', { className: 'awb-tag', key: 'gate', title: t('approval.gate') }, '🔒') : null,
           info.mode ? h('span', { className: 'awb-tag', key: 'mode' }, t(`mode.${info.mode}`)) : null,
         ]),
         h('div', { className: 'awb-nodeMeta', key: 'meta2' }, [
@@ -945,32 +1103,53 @@ window.__ModuleLoader__.load({
       ]);
     }
 
-    /** Stage-lane canvas layout: one column per generation, nodes packed top-down. */
-    function layoutForest(forest, mode) {
-      const nodes = [];
+    /**
+     * Stage-lane canvas layout: one column per generation, nodes packed top-down.
+     * `prefs.overrides` reassigns a Session to another stage; `prefs.order` reorders columns.
+     */
+    function layoutForest(forest, mode, prefs) {
+      const overrides = prefs !== null && typeof prefs.overrides === 'object' ? prefs.overrides : {};
+      const order = prefs !== null && Array.isArray(prefs.order) ? prefs.order : [];
+      const records = [];
       const edges = [];
-      const columns = new Map();
-      let cursor = 0;
       const walk = (node, depth, parentId) => {
-        const column = columns.get(depth) || { count: 0 };
-        const laneIndex = column.count;
-        column.count += 1;
-        columns.set(depth, column);
-        const order = mode === 'canvas' ? laneIndex : cursor;
-        cursor += 1;
-        nodes.push({
-          id: node.id, kind: node.kind, cwd: node.cwd, depth, laneIndex, order,
-          x: depth * (NODE_W + HGAP),
-          y: (mode === 'canvas' ? STAGE_H : 0) + order * (NODE_H + VGAP),
-          childCount: node.kids.length,
+        const effective = node.kind === 'workspace'
+          ? 0
+          : (typeof overrides[node.id] === 'number' ? overrides[node.id] : depth);
+        records.push({
+          id: node.id, kind: node.kind, cwd: node.cwd, depth: effective,
+          childCount: node.kids.length, order: records.length,
         });
         if (parentId !== null) edges.push([parentId, node.id]);
         for (const kid of node.kids) walk(kid, depth + 1, node.id);
       };
       for (const root of forest) walk(root, 0, null);
+
+      const depths = [...new Set(records.map((record) => record.depth))].sort((left, right) => {
+        const leftIndex = order.indexOf(left);
+        const rightIndex = order.indexOf(right);
+        if (leftIndex !== -1 || rightIndex !== -1) {
+          return (leftIndex === -1 ? 1e6 : leftIndex) - (rightIndex === -1 ? 1e6 : rightIndex);
+        }
+        return left - right;
+      });
+
+      const laneByDepth = new Map();
+      const nodes = records.map((record) => {
+        const lane = laneByDepth.get(record.depth) || 0;
+        laneByDepth.set(record.depth, lane + 1);
+        const orderIndex = mode === 'canvas' ? lane : record.order;
+        return {
+          id: record.id, kind: record.kind, cwd: record.cwd, depth: record.depth,
+          laneIndex: lane, order: record.order,
+          x: depths.indexOf(record.depth) * (NODE_W + HGAP),
+          y: (mode === 'canvas' ? STAGE_H : 0) + orderIndex * (NODE_H + VGAP),
+          childCount: record.childCount,
+        };
+      });
       const width = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.x + NODE_W));
       const height = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.y + NODE_H));
-      return { nodes, edges, columns, width, height };
+      return { nodes, edges, depths, width, height };
     }
 
     function stageLabel(depth, t) {
@@ -981,7 +1160,10 @@ window.__ModuleLoader__.load({
     }
 
     function NodeDrawer(props) {
-      const { rec, info, status, lineage, t, now, onOpen, onClose, onSelect } = props;
+      const {
+        rec, info, status, lineage, t, now, onOpen, onClose, onSelect,
+        depths, currentStage, onStageChange,
+      } = props;
       const [copied, setCopied] = useState(false);
       const parent = rec.parentId !== '' && lineage.byId[rec.parentId] !== undefined
         ? lineage.byId[rec.parentId] : undefined;
@@ -1038,6 +1220,15 @@ window.__ModuleLoader__.load({
             h(Kv, { label: t('drawer.activity'), t, key: 'activity' },
               rec.updatedAt ? formatRelative(rec.updatedAt, now) : '—'),
             h(Kv, { label: t('drawer.sessionId'), t, key: 'id' }, rec.id),
+            h(Kv, { label: t('drawer.stage'), t, key: 'stage' }, [
+              h('span', { className: 'awb-stageButtons', key: 'buttons' },
+                (depths.length > 0 ? depths : [currentStage]).map((depth) => h('button', {
+                  type: 'button', key: depth,
+                  className: `awb-miniBtn${depth === currentStage ? ' awb-miniBtnActive' : ''}`,
+                  onClick: () => onStageChange(depth),
+                  title: stageLabel(depth, t),
+                }, `${depth + 1}`))),
+            ]),
           ]),
           h('div', { className: 'awb-drawerActions' }, [
             h('button', {
@@ -1082,13 +1273,15 @@ window.__ModuleLoader__.load({
     }
 
     function GraphView(props) {
-      const { snapshot, openSession, t, now, currentId, emptyHint } = props;
+      const { snapshot, statusMap, openSession, t, now, currentId, emptyHint } = props;
       const [rootId, setRootId] = useState('');
       const [showAll, setShowAll] = useState(false);
       const [wide, setWide] = useState(true);
       const [mode, setMode] = useState('canvas');
       const [zoom, setZoom] = useState(1);
       const [selectedId, setSelectedId] = useState(null);
+      const [stagePrefs, setStagePrefs] = useState(loadStagePrefs);
+      const [dropDepth, setDropDepth] = useState(null);
       const wrapRef = useRef(null);
 
       useEffect(() => {
@@ -1160,8 +1353,8 @@ window.__ModuleLoader__.load({
         hiddenCount += Math.max(0, countNodes(buildFullTree(id)) - countNodes(buildTree(id)));
       }
 
-      const layout = layoutForest(forest, mode);
-      const { nodes, edges, columns, width, height } = layout;
+      const layout = layoutForest(forest, mode, stagePrefs);
+      const { nodes, edges, depths, width, height } = layout;
       const nodeById = new Map(nodes.map((node) => [node.id, node]));
       const paths = [];
       for (const [from, to] of edges) {
@@ -1176,7 +1369,7 @@ window.__ModuleLoader__.load({
         paths.push(`M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`);
       }
 
-      const stages = [...columns.entries()].sort((left, right) => left[0] - right[0]).map(([depth, column]) => {
+      const stages = depths.map((depth) => {
         const inColumn = nodes.filter((node) => node.depth === depth && node.kind !== 'workspace');
         const counts = { running: 0, done: 0, failed: 0, idle: 0, waiting: 0 };
         let tokens = 0;
@@ -1192,6 +1385,44 @@ window.__ModuleLoader__.load({
       const zoomIn = () => setZoom((value) => Math.min(1.6, Math.round((value + 0.2) * 100) / 100));
       const zoomOut = () => setZoom((value) => Math.max(0.5, Math.round((value - 0.2) * 100) / 100));
       const resetZoom = () => setZoom(1);
+
+      const updateStagePrefs = (next) => {
+        setStagePrefs(next);
+        saveStagePrefs(next);
+      };
+      const resetStages = () => updateStagePrefs({ order: [], overrides: {} });
+
+      /** Drag a stage header onto another header to reorder the columns. */
+      const onStageDragOver = (depth) => (event) => {
+        if (!hasDragType(event, 'awb/stage')) return;
+        event.preventDefault();
+        setDropDepth(depth);
+      };
+      const onStageDrop = (target) => (event) => {
+        event.preventDefault();
+        const source = event.dataTransfer.getData('awb/stage');
+        setDropDepth(null);
+        if (source === '' || Number(source) === target) return;
+        const order = depths.filter((depth) => depth !== Number(source));
+        order.splice(order.indexOf(target) === -1 ? order.length : order.indexOf(target), 0, Number(source));
+        updateStagePrefs({ ...stagePrefs, order });
+      };
+      const onNodeDrop = (target) => (event) => {
+        event.preventDefault();
+        const id = event.dataTransfer.getData('awb/node');
+        setDropDepth(null);
+        if (id === '') return;
+        updateStagePrefs({
+          ...stagePrefs,
+          overrides: { ...stagePrefs.overrides, [id]: target },
+        });
+      };
+
+      const stageOfSession = (id) => {
+        if (typeof stagePrefs.overrides[id] === 'number') return stagePrefs.overrides[id];
+        const found = nodes.find((node) => node.id === id);
+        return found === undefined ? 0 : found.depth;
+      };
 
       const selectedRec = selectedId !== null && lineage.byId[selectedId] !== undefined
         ? lineage.byId[selectedId] : null;
@@ -1260,7 +1491,16 @@ window.__ModuleLoader__.load({
             h('span', { className: 'awb-dot awb-dot--idle', key: 'idle' }), t('status.idle'),
             h('span', { className: 'awb-dot awb-dot--failed', key: 'failed' }), t('status.failed'),
           ]),
+          mode === 'canvas'
+            ? h('button', {
+              type: 'button', className: 'awb-btn', onClick: resetStages,
+              title: t('stage.hint'), key: 'resetStages',
+            }, t('stage.reset'))
+            : null,
         ]),
+        mode === 'canvas'
+          ? h('div', { className: 'awb-stageHint', key: 'stageHint' }, t('stage.hint'))
+          : null,
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
           !hasTree
             ? EmptyState({ t, message: t('graph.empty'), icon: '🕸', hint: emptyHint })
@@ -1275,31 +1515,74 @@ window.__ModuleLoader__.load({
                     key: index, d, stroke: 'var(--dsw-alias-border-l2)', strokeWidth: 1.5,
                   }))),
                   mode === 'canvas'
-                    ? stages.map((stage) => h('div', {
-                      className: 'awb-stage', key: `stage-${stage.depth}`,
-                      style: {
-                        left: stage.depth * (NODE_W + HGAP), top: 0,
-                        width: NODE_W, height: STAGE_H - 8,
-                      },
-                    }, [
-                      h('span', { className: 'awb-stageTitle', key: 'title' },
-                        `${stage.depth + 1} · ${stageLabel(stage.depth, t)}`),
-                      h('span', { className: 'awb-stageMeta', key: 'meta' }, [
-                        h('span', { key: 'count' }, t('graph.stage.agents', { count: stage.count })),
-                        stage.hasTokens
-                          ? h('span', { key: 'tokens' }, `${t('tokens')} ${formatTokens(stage.tokens)}`)
-                          : null,
-                      ]),
-                      stageBar(stage.counts),
-                    ]))
-                    : null,
-                  nodes.map((node) => h(NodeCard, {
-                    key: node.id, node,
-                    info: node.kind === 'workspace' ? { label: '' } : infoOf(node.id),
-                    status: node.kind === 'workspace' ? 'idle' : statusOfNode(node.id),
-                    current: currentId === node.id,
-                    t, onOpen: openSession, onSelect: setSelectedId,
-                  })),
+                    ? stages.map((stage) => {
+                      const columnIndex = depths.indexOf(stage.depth);
+                      const columnNodes = nodes.filter((node) => node.depth === stage.depth);
+                      return h('div', {
+                        className: `awb-columnZone${dropDepth === stage.depth ? ' awb-stageDrop' : ''}`,
+                        key: `zone-${stage.depth}`,
+                        style: {
+                          left: columnIndex * (NODE_W + HGAP), top: 0,
+                          width: NODE_W, height: Math.max(height, STAGE_H),
+                        },
+                        onDragOver: (event) => {
+                          if (!hasDragType(event, 'awb/node')) return;
+                          event.preventDefault();
+                          setDropDepth(stage.depth);
+                        },
+                        onDrop: onNodeDrop(stage.depth),
+                        onDragLeave: () => setDropDepth((current) => current === stage.depth ? null : current),
+                      }, [
+                        h('div', {
+                          className: `awb-stage${dropDepth === stage.depth ? ' awb-stageDrop' : ''}`,
+                          style: {
+                            position: 'absolute', left: 0, top: 0,
+                            width: NODE_W, height: STAGE_H - 8, cursor: 'grab',
+                          },
+                          draggable: true,
+                          title: t('stage.hint'),
+                          onDragStart: (event) => {
+                            event.dataTransfer.setData('awb/stage', String(stage.depth));
+                            event.dataTransfer.effectAllowed = 'move';
+                          },
+                          onDragOver: onStageDragOver(stage.depth),
+                          onDrop: onStageDrop(stage.depth),
+                          onDragLeave: () => setDropDepth((current) => current === stage.depth ? null : current),
+                        }, [
+                          h('span', { className: 'awb-stageTitle', key: 'title' },
+                            `${stage.depth + 1} · ${stageLabel(stage.depth, t)}`),
+                          h('span', { className: 'awb-stageMeta', key: 'meta' }, [
+                            h('span', { key: 'count' }, t('graph.stage.agents', { count: stage.count })),
+                            stage.hasTokens
+                              ? h('span', { key: 'tokens' }, `${t('tokens')} ${formatTokens(stage.tokens)}`)
+                              : null,
+                          ]),
+                          stageBar(stage.counts),
+                        ]),
+                        ...columnNodes.map((node) => h(NodeCard, {
+                          key: node.id,
+                          node: { ...node, x: 0 },
+                          info: node.kind === 'workspace' ? { label: '' } : infoOf(node.id),
+                          status: node.kind === 'workspace' ? 'idle' : statusOfNode(node.id),
+                          current: currentId === node.id,
+                          t, onOpen: openSession, onSelect: setSelectedId,
+                          gate: pendingApprovalOf(statusMap, node.id) !== undefined,
+                          draggable: node.kind !== 'workspace',
+                          onDragStart: (event) => {
+                            event.dataTransfer.setData('awb/node', node.id);
+                            event.dataTransfer.effectAllowed = 'move';
+                          },
+                        })),
+                      ]);
+                    })
+                    : nodes.map((node) => h(NodeCard, {
+                      key: node.id, node,
+                      info: node.kind === 'workspace' ? { label: '' } : infoOf(node.id),
+                      status: node.kind === 'workspace' ? 'idle' : statusOfNode(node.id),
+                      current: currentId === node.id,
+                      t, onOpen: openSession, onSelect: setSelectedId,
+                      gate: pendingApprovalOf(statusMap, node.id) !== undefined,
+                    })),
                 ]),
               ])
               : h('div', { key: 'narrow' }, forest.map((root) => h(TreeNode, {
@@ -1315,6 +1598,12 @@ window.__ModuleLoader__.load({
             onOpen: openSession,
             onClose: () => setSelectedId(null),
             onSelect: (id) => setSelectedId(id),
+            depths,
+            currentStage: stageOfSession(selectedRec.id),
+            onStageChange: (depth) => updateStagePrefs({
+              ...stagePrefs,
+              overrides: { ...stagePrefs.overrides, [selectedRec.id]: depth },
+            }),
             key: 'drawer',
           })
           : null,
@@ -1326,7 +1615,10 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function RunCard(props) {
-      const { run, t, openSession, sessionById, now } = props;
+      const {
+        run, t, openSession, sessionById, now,
+        attempt, attempts, compareMode, compareSelected, onToggleCompare,
+      } = props;
       const [open, setOpen] = useState(false);
       const agents = Array.isArray(run.agents) ? run.agents : [];
       const failedCount = agents.filter((agent) => agent.status === 'failed').length;
@@ -1335,6 +1627,12 @@ window.__ModuleLoader__.load({
       const running = !run.endedAt;
       const failed = failedCount > 0 || /error|fail|cancel/i.test(run.stopReason || '');
       const status = running ? 'running' : failed ? 'failed' : 'done';
+
+      const attemptsByKey = new Map();
+      for (const agent of agents) {
+        const key = `${agent.phase || ''}::${agent.label}`;
+        attemptsByKey.set(key, (attemptsByKey.get(key) || 0) + 1);
+      }
 
       let tokens = 0;
       let hasTokens = false;
@@ -1360,8 +1658,19 @@ window.__ModuleLoader__.load({
         h('div', { className: 'awb-runHead', onClick: () => setOpen((value) => !value), key: 'head' }, [
           h(Dot, { status, key: 'dot' }),
           h('span', { className: 'awb-runName', title: run.name, key: 'name' }, run.name),
+          attempts > 1
+            ? h('span', { className: 'awb-tag', key: 'attempt' }, t('retry.attempt', { n: attempt }))
+            : null,
           h('span', { className: 'awb-runMeta', key: 'meta' },
             `${time} · ${agents.length} · ${stopLabel(run, t)}`),
+          compareMode
+            ? h('button', {
+              type: 'button', className: 'awb-miniBtn', key: 'compare',
+              title: t('compare.title'), 'aria-label': t('compare.title'),
+              'aria-pressed': compareSelected,
+              onClick: (event) => { event.stopPropagation(); onToggleCompare(run.id); },
+            }, compareSelected ? '✓' : '☐')
+            : null,
         ]),
         open
           ? h('div', { className: 'awb-runBody', key: 'body' }, [
@@ -1381,6 +1690,8 @@ window.__ModuleLoader__.load({
               ]),
               list.map((agent) => {
                 const info = infoOfChild(agent.childId);
+                const key = `${agent.phase || ''}::${agent.label}`;
+                const retries = attemptsByKey.get(key) || 1;
                 return h('div', {
                   key: agent.seq,
                   className: `awb-pillRow${agent.childId ? ' awb-pillRowClick' : ''}`,
@@ -1392,6 +1703,10 @@ window.__ModuleLoader__.load({
                     key: 'dot',
                   }),
                   h('span', { className: 'awb-pillLabel', key: 'label' }, agent.label),
+                  retries > 1
+                    ? h('span', { className: 'awb-tag', key: 'retry', title: t('retry.times', { count: retries }) },
+                      `↻ ${retries}`)
+                    : null,
                   info.model ? h('span', { className: 'awb-tag', key: 'model' }, `⚡ ${info.model}`) : null,
                   info.tokens !== undefined
                     ? h('span', { className: 'awb-tag', key: 'tokens' }, formatTokens(info.tokens))
@@ -1418,20 +1733,105 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    function CompareTable(props) {
+      const { left, right, t, onClose } = props;
+      const summarize = (run) => {
+        const agents = Array.isArray(run.agents) ? run.agents : [];
+        return {
+          agents: agents.length,
+          done: agents.filter((agent) => agent.status === 'done').length,
+          running: agents.filter((agent) => agent.status === 'running').length,
+          failed: agents.filter((agent) => agent.status === 'failed').length,
+          phases: new Set(agents.map((agent) => agent.phase || '')).size,
+          duration: run.endedAt ? Math.max(0, run.endedAt - (run.startedAt || 0)) : 0,
+        };
+      };
+      const leftSum = summarize(left);
+      const rightSum = summarize(right);
+      const row = (label, a, b, key) => h(React.Fragment, { key }, [
+        h('span', { className: 'awb-compareMetric', key: 'metric' }, label),
+        h('span', { className: 'awb-compareCell', key: 'a' }, a),
+        h('span', { className: 'awb-compareCell', key: 'b' }, b),
+      ]);
+      return h('div', { className: 'awb-compare' }, [
+        h('div', { className: 'awb-compareHead' }, [
+          h('span', { className: 'awb-sectionTitle', key: 'title' }, t('compare.title')),
+          h('button', {
+            type: 'button', className: 'awb-miniBtn', key: 'close',
+            onClick: onClose,
+          }, t('compare.close')),
+        ]),
+        h('div', { className: 'awb-compareGrid' }, [
+          h('span', { className: 'awb-compareMetric', key: 'h-metric' }, t('compare.metric')),
+          h('span', { className: 'awb-compareCell awb-compareHeadCell', key: 'h-a' },
+            `${t('compare.runA')} · ${left.name}`),
+          h('span', { className: 'awb-compareCell awb-compareHeadCell', key: 'h-b' },
+            `${t('compare.runB')} · ${right.name}`),
+          row(t('compare.status'), stopLabel(left, t), stopLabel(right, t), 'status'),
+          row(t('compare.agents'), String(leftSum.agents), String(rightSum.agents), 'agents'),
+          row(t('status.done'), String(leftSum.done), String(rightSum.done), 'done'),
+          row(t('status.running'), String(leftSum.running), String(rightSum.running), 'running'),
+          row(t('status.failed'), String(leftSum.failed), String(rightSum.failed), 'failed'),
+          row(t('compare.phases'), String(leftSum.phases), String(rightSum.phases), 'phases'),
+          row(t('compare.duration'), formatDuration(leftSum.duration), formatDuration(rightSum.duration), 'duration'),
+        ]),
+      ]);
+    }
+
     function TimelineView(props) {
       const { snapshot, openSession, t, now, runs, runOk } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const agentEvents = useMemo(() => collectActivity(lineage, 40).filter((event) => event.kind === 'agent'), [lineage]);
       const sessionById = (id) => lineage.byId[id];
       const totalRunAgents = runs.reduce((total, run) => total + (Array.isArray(run.agents) ? run.agents.length : 0), 0);
+      const [compareIds, setCompareIds] = useState([]);
+      const [compareEnabled, setCompareEnabled] = useState(false);
+      const compareMode = compareEnabled;
+      const toggleCompare = (id) => setCompareIds((current) => {
+        if (current.includes(id)) return current.filter((value) => value !== id);
+        return [...current.slice(-1), id];
+      });
+      const toggleCompareMode = () => {
+        if (compareEnabled) setCompareIds([]);
+        setCompareEnabled(!compareEnabled);
+      };
+      const compareRuns = compareIds
+        .map((id) => runs.find((run) => run.id === id))
+        .filter((run) => run !== undefined)
+        .sort((left, right) => (left.startedAt || 0) - (right.startedAt || 0));
+      const attemptsByName = new Map();
+      for (const run of runs) attemptsByName.set(run.name, (attemptsByName.get(run.name) || 0) + 1);
+      const attemptNumberOf = (run) => runs
+        .filter((candidate) => candidate.name === run.name)
+        .sort((left, right) => (left.startedAt || 0) - (right.startedAt || 0))
+        .findIndex((candidate) => candidate.id === run.id) + 1;
 
       return h('div', { className: 'awb-view' }, [
         h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
           h('span', { className: 'awb-toolbarTitle', key: 'title' }, t('timeline.title')),
           h('span', { className: 'awb-meta', key: 'meta' },
             `${t('timeline.runs', { count: runs.length })} · ${t('timeline.agents', { count: totalRunAgents })}${runOk ? '' : ` · ${t('timeline.offline')}`}`),
+          runs.length > 1
+            ? h('button', {
+              type: 'button',
+              className: `awb-btn${compareMode ? ' awb-btnActive' : ''}`,
+              onClick: toggleCompareMode,
+              title: t('compare.hint'),
+              key: 'compareToggle',
+            }, compareMode ? t('compare.clear') : t('compare.title'))
+            : null,
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
+          compareMode && compareRuns.length === 2
+            ? h(CompareTable, {
+              left: compareRuns[0], right: compareRuns[1], t,
+              onClose: () => { setCompareIds([]); setCompareEnabled(false); },
+              key: 'compare',
+            })
+            : null,
+          compareMode && compareRuns.length < 2
+            ? h('div', { className: 'awb-hint', key: 'compareHint' }, t('compare.hint'))
+            : null,
           h('div', { className: 'awb-sectionTitle', key: 'runSection' }, [
             t('timeline.runSection'),
             h('span', { className: 'awb-count', key: 'count' }, String(runs.length)),
@@ -1440,6 +1840,11 @@ window.__ModuleLoader__.load({
             ? h('div', { className: 'awb-hint', key: 'runEmpty' }, t('timeline.runEmpty'))
             : runs.slice().reverse().map((run) => h(RunCard, {
               key: run.id, run, t, openSession, sessionById, now,
+              attempt: attemptNumberOf(run),
+              attempts: attemptsByName.get(run.name) || 1,
+              compareMode,
+              compareSelected: compareIds.includes(run.id),
+              onToggleCompare: toggleCompare,
             })),
           h('div', { className: 'awb-sectionTitle', key: 'railSection' }, [
             t('timeline.agentRail'),
@@ -1579,9 +1984,12 @@ window.__ModuleLoader__.load({
     function PanelBody(props) {
       const {
         tab, setTab, t, now, runs, runOk,
-        useSessions, sessionId, leadSessionId, openSession,
+        useSessions, useSessionStatus, sessionId, leadSessionId, openSession,
       } = props;
       const storeSnapshot = typeof useSessions === 'function' ? useSessions((state) => state) : EMPTY_SNAPSHOT;
+      const statusMap = typeof useSessionStatus === 'function'
+        ? useSessionStatus((state) => state)
+        : EMPTY_STATUS_MAP;
       const hostSessions = useHostSessions();
       const snapshot = useMemo(() => mergeSnapshots(storeSnapshot, hostSessions), [storeSnapshot, hostSessions]);
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
@@ -1599,12 +2007,12 @@ window.__ModuleLoader__.load({
         h('div', { className: 'awb-body', key: 'body' }, [
           tab === 'overview'
             ? h(OverviewView, {
-              leadSessionId: lead, snapshot, openSession, t, now,
+              leadSessionId: lead, snapshot, statusMap, openSession, t, now,
               runs, runCount: runs.length, emptyHint, key: 'view',
             })
             : tab === 'graph'
               ? h(GraphView, {
-                snapshot, openSession, t, now, currentId, emptyHint, key: 'view',
+                snapshot, statusMap, openSession, t, now, currentId, emptyHint, key: 'view',
               })
               : tab === 'timeline'
                 ? h(TimelineView, { snapshot, openSession, t, now, runs, runOk, key: 'view' })
@@ -1614,21 +2022,24 @@ window.__ModuleLoader__.load({
     }
 
     function MainPanel(props) {
-      const { useSessions, openSession, t } = props;
+      const { useSessions, useSessionStatus, openSession, t } = props;
       const [tab, setTab] = useState('overview');
       const now = useNow(15000);
       const { runs, ok } = useWorkflowRuns();
-      return h(PanelBody, { tab, setTab, t, now, runs, runOk: ok, useSessions, openSession });
+      return h(PanelBody, {
+        tab, setTab, t, now, runs, runOk: ok,
+        useSessions, useSessionStatus, openSession,
+      });
     }
 
     function AsidePanel(props) {
-      const { useSession, sessionId, useSessions, openSession, t } = props;
+      const { useSession, sessionId, useSessions, useSessionStatus, openSession, t } = props;
       const [tab, setTab] = useState('overview');
       const now = useNow(15000);
       const { runs, ok } = useWorkflowRuns();
       const parentSessionId = useSession((state) => (state ? state.subagent && state.subagent.address.parentSessionId : undefined));
       return h(PanelBody, {
-        tab, setTab, t, now, runs, runOk: ok, useSessions, sessionId,
+        tab, setTab, t, now, runs, runOk: ok, useSessions, useSessionStatus, sessionId,
         leadSessionId: parentSessionId || sessionId || '',
         openSession,
       });
