@@ -649,17 +649,29 @@ window.__ModuleLoader__.load({
     }
 
     function useWorkflowRuns() {
-      const [state, setState] = useState({ runs: [], ok: false });
+      const [state, setState] = useState({ runs: [], ok: false, key: '' });
       useEffect(() => {
         let stop = false;
         const tick = () => {
           fetch(RUNS_API, { cache: 'no-store' })
             .then((response) => (response.ok ? response.json() : null))
             .then((json) => {
-              if (!stop && json !== null) setState({ runs: Array.isArray(json.runs) ? json.runs : [], ok: true });
+              if (stop || json === null) return;
+              const runs = Array.isArray(json.runs) ? json.runs : [];
+              // Skip the setState when nothing changed, so an idle workspace
+              // keeps the same reference and downstream memos hold.
+              let key;
+              try {
+                key = JSON.stringify(runs);
+              } catch {
+                key = String(runs.length);
+              }
+              setState((current) => (current.ok && current.key === key
+                ? current
+                : { runs, ok: true, key }));
             })
             .catch(() => {
-              if (!stop) setState((current) => ({ runs: current.runs, ok: false }));
+              if (!stop) setState((current) => (current.ok ? { runs: current.runs, ok: false, key: current.key } : current));
             });
         };
         tick();
@@ -672,6 +684,7 @@ window.__ModuleLoader__.load({
     /** Host session rows over the shared HTTP RPC, polled beside the Client store. */
     function useHostSessions() {
       const [sessions, setSessions] = useState([]);
+      const keyRef = useRef('');
       useEffect(() => {
         let stop = false;
         const tick = () => {
@@ -688,6 +701,16 @@ window.__ModuleLoader__.load({
               const result = envelope.result;
               if (result === undefined || result.ok !== true) return;
               const items = result.value && Array.isArray(result.value.items) ? result.value.items : [];
+              // A poll that returns the same rows must not invalidate the
+              // merged snapshot, the lineage and the graph layout.
+              let key;
+              try {
+                key = JSON.stringify(items);
+              } catch {
+                key = String(items.length);
+              }
+              if (key === keyRef.current) return;
+              keyRef.current = key;
               setSessions(items.map((item) => {
                 const values = (item.projections && item.projections.values) || {};
                 return {
@@ -861,7 +884,7 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function OverviewView(props) {
-      const { leadSessionId, snapshot, statusMap, openSession, t, now, runs, runCount, emptyHint } = props;
+      const { leadSessionId, snapshot, statusMap, openSession, t, now, runs, runCount } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const stats = useMemo(() => summarize(lineage, now), [lineage, now]);
       const activity = useMemo(() => collectActivity(lineage, 12), [lineage]);
@@ -900,7 +923,7 @@ window.__ModuleLoader__.load({
         ]),
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
           stats.total === 0
-            ? EmptyState({ t, message: t('overview.empty'), icon: '🗂', hint: emptyHint })
+            ? EmptyState({ t, message: t('overview.empty'), icon: '🗂' })
             : [
               h('div', { className: 'awb-stats', key: 'stats' }, [
                 h(StatTile, { key: 'sessions', label: t('overview.stats.sessions'), value: String(stats.total) }),
@@ -1273,7 +1296,7 @@ window.__ModuleLoader__.load({
     }
 
     function GraphView(props) {
-      const { snapshot, statusMap, openSession, t, now, currentId, emptyHint } = props;
+      const { snapshot, statusMap, openSession, t, now, currentId } = props;
       const [rootId, setRootId] = useState('');
       const [showAll, setShowAll] = useState(false);
       const [wide, setWide] = useState(true);
@@ -1320,17 +1343,19 @@ window.__ModuleLoader__.load({
       };
       const visibleKids = (id) => (lineage.children[id] || []).filter((child) => showAll || isActive(child) || subtreeActive(child));
       const buildTree = (id) => ({ id, kind: 'session', kids: visibleKids(id).map(buildTree) });
-      const buildFullTree = (id) => ({ id, kind: 'session', kids: (lineage.children[id] || []).map(buildFullTree) });
-      const countNodes = (node) => 1 + node.kids.reduce((sum, kid) => sum + countNodes(kid), 0);
 
       // No explicit pick means the whole forest: every workspace, its root Sessions
       // and each root's subtree, so a flat session list still reads as one graph.
       const selectValue = rootId !== '' && lineage.byId[rootId] !== undefined ? rootId : '';
       const newestOf = (ids) => ids.reduce((max, id) => Math.max(max, lineage.byId[id] ? lineage.byId[id].updatedAt : 0), 0);
-      const forest = [];
-      if (selectValue !== '') {
-        forest.push(buildTree(selectValue));
-      } else {
+
+      const forest = useMemo(() => {
+        const build = (id) => ({ id, kind: 'session', kids: visibleKids(id).map(build) });
+        const tree = [];
+        if (selectValue !== '') {
+          tree.push(build(selectValue));
+          return tree;
+        }
         const groups = new Map();
         for (const id of lineage.roots) {
           const rec = lineage.byId[id];
@@ -1341,46 +1366,71 @@ window.__ModuleLoader__.load({
         const ordered = [...groups.entries()].sort((left, right) => newestOf(right[1]) - newestOf(left[1]));
         for (const [cwd, roots] of ordered) {
           if (cwd === '' || roots.length === 0) {
-            for (const id of roots) forest.push(buildTree(id));
+            for (const id of roots) tree.push(build(id));
             continue;
           }
-          forest.push({ id: `ws:${cwd}`, kind: 'workspace', cwd, kids: roots.map(buildTree) });
+          tree.push({ id: `ws:${cwd}`, kind: 'workspace', cwd, kids: roots.map(build) });
         }
-      }
+        return tree;
+      }, [lineage, now, showAll, selectValue]);
       const hasTree = forest.length > 0;
-      let hiddenCount = 0;
-      for (const id of lineage.roots) {
-        hiddenCount += Math.max(0, countNodes(buildFullTree(id)) - countNodes(buildTree(id)));
-      }
+      // Count the nodes an "active only" filter hides, without rebuilding each
+      // full subtree per root: one DFS over the filtered forest tells the size,
+      // one over the lineage tells the total.
+      const hiddenCount = useMemo(() => {
+        let total = 0;
+        for (const id of lineage.roots) {
+          const stack = [id];
+          while (stack.length > 0) {
+            const current = stack.pop();
+            total += 1;
+            for (const kid of lineage.children[current] || []) stack.push(kid);
+          }
+        }
+        let visible = 0;
+        const countVisible = (node) => {
+          visible += 1;
+          for (const kid of node.kids) countVisible(kid);
+        };
+        for (const node of forest) countVisible(node);
+        return Math.max(0, total - visible);
+      }, [lineage, forest]);
 
-      const layout = layoutForest(forest, mode, stagePrefs);
+      const layout = useMemo(
+        () => layoutForest(forest, mode, stagePrefs),
+        [forest, mode, stagePrefs],
+      );
       const { nodes, edges, depths, width, height } = layout;
-      const nodeById = new Map(nodes.map((node) => [node.id, node]));
-      const paths = [];
-      for (const [from, to] of edges) {
-        const start = nodeById.get(from);
-        const end = nodeById.get(to);
-        if (start === undefined || end === undefined) continue;
-        const x1 = start.x + NODE_W;
-        const y1 = start.y + NODE_H / 2;
-        const x2 = end.x;
-        const y2 = end.y + NODE_H / 2;
-        const middle = (x1 + x2) / 2;
-        paths.push(`M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`);
-      }
 
-      const stages = depths.map((depth) => {
+      const paths = useMemo(() => {
+        const byId = new Map(nodes.map((node) => [node.id, node]));
+        const result = [];
+        for (const [from, to] of edges) {
+          const start = byId.get(from);
+          const end = byId.get(to);
+          if (start === undefined || end === undefined) continue;
+          const x1 = start.x + NODE_W;
+          const y1 = start.y + NODE_H / 2;
+          const x2 = end.x;
+          const y2 = end.y + NODE_H / 2;
+          const middle = (x1 + x2) / 2;
+          result.push(`M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`);
+        }
+        return result;
+      }, [nodes, edges]);
+
+      const stages = useMemo(() => depths.map((depth) => {
         const inColumn = nodes.filter((node) => node.depth === depth && node.kind !== 'workspace');
         const counts = { running: 0, done: 0, failed: 0, idle: 0, waiting: 0 };
         let tokens = 0;
         let hasTokens = false;
         for (const node of inColumn) {
-          counts[statusOfNode(node.id)] += 1;
-          const value = infoOf(node.id).tokens;
+          counts[statusOf(lineage.byId[node.id])] += 1;
+          const value = nodeInfo(lineage.byId[node.id], now).tokens;
           if (value !== undefined) { tokens += value; hasTokens = true; }
         }
         return { depth, count: inColumn.length, counts, tokens, hasTokens };
-      });
+      }), [nodes, depths, lineage, now]);
 
       const zoomIn = () => setZoom((value) => Math.min(1.6, Math.round((value + 0.2) * 100) / 100));
       const zoomOut = () => setZoom((value) => Math.max(0.5, Math.round((value - 0.2) * 100) / 100));
@@ -1503,7 +1553,7 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { className: 'awb-scroll', key: 'scroll' }, [
           !hasTree
-            ? EmptyState({ t, message: t('graph.empty'), icon: '🕸', hint: emptyHint })
+            ? EmptyState({ t, message: t('graph.empty'), icon: '🕸' })
             : wide
               ? h('div', { className: 'awb-canvasWrap', key: 'wide' }, [
                 h('div', { className: 'awb-canvas', style: { width, height, zoom }, key: 'canvas' }, [
@@ -1993,7 +2043,6 @@ window.__ModuleLoader__.load({
       const hostSessions = useHostSessions();
       const snapshot = useMemo(() => mergeSnapshots(storeSnapshot, hostSessions), [storeSnapshot, hostSessions]);
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
-      const emptyHint = `store ${Object.keys((storeSnapshot && storeSnapshot.byId) || {}).length} · host ${hostSessions.length}`;
       const currentId = (() => {
         const found = Object.values(snapshot.byId)
           .find((rec) => rec.retainedBy && rec.retainedBy.mainView > 0);
@@ -2008,11 +2057,11 @@ window.__ModuleLoader__.load({
           tab === 'overview'
             ? h(OverviewView, {
               leadSessionId: lead, snapshot, statusMap, openSession, t, now,
-              runs, runCount: runs.length, emptyHint, key: 'view',
+              runs, runCount: runs.length, key: 'view',
             })
             : tab === 'graph'
               ? h(GraphView, {
-                snapshot, statusMap, openSession, t, now, currentId, emptyHint, key: 'view',
+                snapshot, statusMap, openSession, t, now, currentId, key: 'view',
               })
               : tab === 'timeline'
                 ? h(TimelineView, { snapshot, openSession, t, now, runs, runOk, key: 'view' })
