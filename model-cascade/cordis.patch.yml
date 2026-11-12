@@ -1,0 +1,3 @@
+- insert:
+    - id: model-cascade
+      name: '@local/model-cascade'

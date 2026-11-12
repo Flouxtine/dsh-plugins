@@ -1,0 +1,71 @@
+{
+  "name": "@local/model-cascade",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A two-stage model cascade for DeepSeek Harness — a strong model decides the route, then a small or strong model executes.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "model-routing",
+    "cascade",
+    "llm"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Flouxtine/dsh-plugins.git",
+    "directory": "model-cascade"
+  },
+  "homepage": "https://github.com/Flouxtine/dsh-plugins/tree/main/model-cascade#readme",
+  "bugs": {
+    "url": "https://github.com/Flouxtine/dsh-plugins/issues"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.2"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  }
+}

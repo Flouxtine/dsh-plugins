@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Model Cascade",
+    "description": "A two-stage model flow: a strong model decides the route, then a small or strong model executes."
+  }
+}
