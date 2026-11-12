@@ -737,7 +737,38 @@ window.__ModuleLoader__.load({
     }
 
     const EMPTY_SNAPSHOT = { ids: [], byId: {}, phase: 'pending', projectionsBySession: {} };
+    const EMPTY_LINEAGE = { byId: {}, children: {}, roots: [] };
     const EMPTY_STATUS_MAP = new Map();
+
+    /**
+     * Cheap digest of the fields `mergeSnapshots`/`buildLineage` read, for use as a
+     * memo dependency. The Client store emits a fresh snapshot object on every
+     * update, so memoizing on the snapshot *reference* rebuilds the merged rows
+     * and the lineage even when an unrelated projection moved. Keying on this
+     * digest keeps the rows, the lineage and therefore the graph layout stable
+     * across those emissions. Token, model and subagent values are compared by
+     * projection-object identity (a store update that replaces one produces a
+     * new reference), so real data changes still invalidate the cache.
+     */
+    function snapshotKey(store, hostSessions) {
+      const parts = [];
+      for (const session of hostSessions) {
+        const values = (session && session.values) || {};
+        parts.push(`${session.id}:${session.title || ''}:${session.parentId || ''}:${session.updatedAt || 0}:${session.running ? 1 : 0}:${session.blank ? 1 : 0}:${session.cwd || ''}:${String(values.subagent)}:${String(values.modelSelection)}:${String(values.tokenUsage)}:${String(values.subagentTiming)}`);
+      }
+      const storeById = (store && store.byId) || {};
+      const storeProjections = (store && store.projectionsBySession) || {};
+      for (const id of Object.keys(storeById)) {
+        const rec = storeById[id] || {};
+        const retained = rec.retainedBy && rec.retainedBy.mainView > 0 ? 'M' : '';
+        parts.push(`${id}:${rec.title || ''}:${rec.parentId || rec.parentSessionId || ''}:${rec.updatedAt || 0}:${rec.running ? 1 : 0}:${rec.blank ? 1 : 0}:${rec.cwd || ''}:${retained}`);
+      }
+      for (const id of Object.keys(storeProjections)) {
+        const values = storeProjections[id] ? storeProjections[id].values : undefined;
+        parts.push(`${id}:${String(values)}`);
+      }
+      return parts.join('|');
+    }
 
     /**
      * Merge Host session rows with the Client store snapshot. The Client row wins
@@ -2041,8 +2072,18 @@ window.__ModuleLoader__.load({
         ? useSessionStatus((state) => state)
         : EMPTY_STATUS_MAP;
       const hostSessions = useHostSessions();
-      const snapshot = useMemo(() => mergeSnapshots(storeSnapshot, hostSessions), [storeSnapshot, hostSessions]);
-      const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
+      // The store emits a fresh snapshot object on every update; rebuilding the
+      // merged rows and the lineage on each emission (and therefore re-laying out
+      // the graph) is wasted work when nothing that feeds them moved. Cache both
+      // behind the cheap digest and hand out the same references while it holds.
+      const dataKey = snapshotKey(storeSnapshot, hostSessions);
+      const dataCache = useRef({ key: null, snapshot: EMPTY_SNAPSHOT, lineage: EMPTY_LINEAGE });
+      if (dataCache.current.key !== dataKey) {
+        const merged = mergeSnapshots(storeSnapshot, hostSessions);
+        dataCache.current = { key: dataKey, snapshot: merged, lineage: buildLineage(merged) };
+      }
+      const snapshot = dataCache.current.snapshot;
+      const lineage = dataCache.current.lineage;
       const currentId = (() => {
         const found = Object.values(snapshot.byId)
           .find((rec) => rec.retainedBy && rec.retainedBy.mainView > 0);
