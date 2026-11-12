@@ -18,11 +18,12 @@ window.__ModuleLoader__.load({
 
     const NS = 'agent-workflow-board';
     const PANEL_ID = 'agent-workflow-board';
-    const WIDE_MIN = 420;
+    const WIDE_MIN = 360;
     const ACTIVE_MS = 2 * 60 * 60 * 1000;
     const RUNS_API = '/api/agent-workflow-board/runs';
     const NODE_W = 248;
     const NODE_H = 106;
+    const STAGE_H = 64;
     const HGAP = 56;
     const VGAP = 16;
 
@@ -56,6 +57,16 @@ window.__ModuleLoader__.load({
         'overview.children': '{count} agents',
         'overview.noModel': 'No model route yet',
         'graph.title': 'Agent graph',
+        'graph.mode.canvas': 'Canvas',
+        'graph.mode.tree': 'Tree',
+        'graph.zoomIn': 'Zoom in',
+        'graph.zoomOut': 'Zoom out',
+        'graph.zoomReset': 'Reset zoom',
+        'graph.stage.workspace': 'Workspace',
+        'graph.stage.lead': 'Main sessions',
+        'graph.stage.sub': 'Subagents',
+        'graph.stage.gen': 'Generation {n}',
+        'graph.stage.agents': '{count} agents',
         'graph.empty': 'No sessions yet.\nOpen a conversation or spawn a subagent to see the workflow graph.',
         'graph.showAll': 'Show all',
         'graph.activeOnly': 'Active only',
@@ -90,6 +101,28 @@ window.__ModuleLoader__.load({
         'timeline.interrupted': 'interrupted',
         'timeline.defaultPhase': 'Default phase',
         'timeline.open': 'Open agent conversation',
+        'timeline.summary': 'Run summary',
+        'timeline.totalAgents': '{count} agents',
+        'timeline.totalTokens': '{value} tokens',
+        'timeline.jump': 'Open',
+        'drawer.title': 'Agent details',
+        'drawer.status': 'Status',
+        'drawer.model': 'Model',
+        'drawer.mode': 'Mode',
+        'drawer.tokens': 'Tokens',
+        'drawer.duration': 'Duration',
+        'drawer.parent': 'Parent',
+        'drawer.children': 'Children',
+        'drawer.workspace': 'Workspace',
+        'drawer.activity': 'Last activity',
+        'drawer.sessionId': 'Session ID',
+        'drawer.open': 'Open conversation',
+        'drawer.copy': 'Copy ID',
+        'drawer.copied': 'Copied',
+        'drawer.noParent': 'None (root)',
+        'drawer.noChildren': 'None',
+        'drawer.workspaceNode': 'Workspace',
+        'drawer.noModel': 'No model route',
         'timeline.agentRail': 'Agent spawning',
         'timeline.agentRailEmpty': 'No subagent has been spawned in this workspace yet.',
         'timeline.runSection': 'Workflow runs',
@@ -143,6 +176,16 @@ window.__ModuleLoader__.load({
         'overview.children': '{count} 个子代理',
         'overview.noModel': '尚未选择模型',
         'graph.title': '代理关系图',
+        'graph.mode.canvas': '画布',
+        'graph.mode.tree': '树形',
+        'graph.zoomIn': '放大',
+        'graph.zoomOut': '缩小',
+        'graph.zoomReset': '重置缩放',
+        'graph.stage.workspace': '工作区',
+        'graph.stage.lead': '主会话',
+        'graph.stage.sub': '子代理',
+        'graph.stage.gen': '第 {n} 代代理',
+        'graph.stage.agents': '{count} 个代理',
         'graph.empty': '还没有会话。\n打开一个对话或派生一个子代理，这里就会显示出工作流关系图。',
         'graph.showAll': '显示全部',
         'graph.activeOnly': '只看活跃',
@@ -177,6 +220,28 @@ window.__ModuleLoader__.load({
         'timeline.interrupted': '已中断',
         'timeline.defaultPhase': '默认阶段',
         'timeline.open': '打开子代理会话',
+        'timeline.summary': '运行摘要',
+        'timeline.totalAgents': '{count} 个子代理',
+        'timeline.totalTokens': '{value} Token',
+        'timeline.jump': '打开',
+        'drawer.title': '代理详情',
+        'drawer.status': '状态',
+        'drawer.model': '模型',
+        'drawer.mode': '模式',
+        'drawer.tokens': 'Token',
+        'drawer.duration': '耗时',
+        'drawer.parent': '父会话',
+        'drawer.children': '子代理',
+        'drawer.workspace': '工作区',
+        'drawer.activity': '最近活动',
+        'drawer.sessionId': '会话 ID',
+        'drawer.open': '打开会话',
+        'drawer.copy': '复制 ID',
+        'drawer.copied': '已复制',
+        'drawer.noParent': '无（根会话）',
+        'drawer.noChildren': '无',
+        'drawer.workspaceNode': '工作区',
+        'drawer.noModel': '尚未选择模型',
         'timeline.agentRail': '代理派生',
         'timeline.agentRailEmpty': '该工作区还没有派生过子代理。',
         'timeline.runSection': '工作流运行',
@@ -204,7 +269,7 @@ window.__ModuleLoader__.load({
     };
 
     const CSS = [
-      '.awb-root{display:flex;flex-direction:column;flex:1 1 auto;height:100%;min-height:0;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px}',
+      '.awb-root{display:flex;flex-direction:column;flex:1 1 auto;height:100%;min-height:0;min-width:0;color:var(--dsw-alias-label-primary);font-size:13px;position:relative}',
       '.awb-view{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0}',
       '.awb-tabs{display:flex;gap:4px;padding:10px 14px 0;border-bottom:1px solid var(--dsw-alias-border-l1);flex:none}',
       '.awb-tab{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:20px;padding:6px 11px;border-radius:8px;cursor:pointer}',
@@ -270,6 +335,37 @@ window.__ModuleLoader__.load({
       '.awb-listRow:hover{background:var(--dsw-alias-bg-layer-2)}',
       '.awb-listLabel{flex:1 1 auto;min-width:0;font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.awb-listKids{margin-left:14px;border-left:1px solid var(--dsw-alias-border-l1);padding-left:8px}',
+      /* canvas / stage lanes */
+      '.awb-stage{position:absolute;display:flex;flex-direction:column;gap:2px;padding:6px 8px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);min-width:0;box-sizing:border-box}',
+      '.awb-stageTitle{font-size:11px;font-weight:650;letter-spacing:0.02em;color:var(--dsw-alias-label-primary);display:flex;align-items:center;gap:5px}',
+      '.awb-stageMeta{font-size:10px;color:var(--dsw-alias-label-secondary);display:flex;gap:6px;flex-wrap:wrap;font-variant-numeric:tabular-nums}',
+      '.awb-stageBar{height:3px;border-radius:2px;background:var(--dsw-alias-bg-layer-1);overflow:hidden;display:flex}',
+      '.awb-stageBar i{display:block;height:100%}',
+      '.awb-canvasWrap{height:100%;overflow:auto}',
+      '.awb-canvas{position:relative;transform-origin:0 0}',
+      '.awb-toolbarSep{width:1px;height:18px;background:var(--dsw-alias-border-l2);margin:0 2px;flex:none}',
+      '.awb-zoom{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:1px;background:var(--dsw-alias-bg-layer-1)}',
+      '.awb-zoomBtn{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;line-height:16px;width:22px;height:22px;border-radius:6px;cursor:pointer;padding:0}',
+      '.awb-zoomBtn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}',
+      '.awb-zoomValue{font-size:10.5px;color:var(--dsw-alias-label-secondary);min-width:36px;text-align:center;font-variant-numeric:tabular-nums}',
+      '.awb-modeSwitch{display:inline-flex;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;padding:1px;background:var(--dsw-alias-bg-layer-1);gap:1px}',
+      '.awb-modeBtn{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11.5px;line-height:18px;padding:2px 8px;border-radius:6px;cursor:pointer}',
+      '.awb-modeBtnActive{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:600}',
+      /* node detail drawer */
+      '.awb-drawerBackdrop{position:absolute;inset:0;background:rgba(0,0,0,.18);z-index:15}',
+      '.awb-drawer{position:absolute;top:0;right:0;bottom:0;width:330px;max-width:92%;background:var(--dsw-alias-bg-overlay);border-left:1px solid var(--dsw-alias-border-l1);box-shadow:-8px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:20}',
+      '.awb-drawerHead{display:flex;align-items:center;gap:8px;padding:12px 13px;border-bottom:1px solid var(--dsw-alias-border-l1);flex:none}',
+      '.awb-drawerTitle{flex:1 1 auto;min-width:0;font-size:13.5px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.awb-drawerClose{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:14px;line-height:18px;width:24px;height:24px;border-radius:7px;cursor:pointer;flex:none}',
+      '.awb-drawerClose:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}',
+      '.awb-drawerBody{flex:1 1 auto;min-height:0;overflow:auto;padding:12px 13px}',
+      '.awb-kv{display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--dsw-alias-border-l1);font-size:12px}',
+      '.awb-kvLabel{flex:none;width:92px;color:var(--dsw-alias-label-secondary)}',
+      '.awb-kvValue{flex:1 1 auto;min-width:0;word-break:break-word}',
+      '.awb-drawerActions{display:flex;gap:6px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--dsw-alias-border-l1);flex:none}',
+      '.awb-miniBtn{border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;line-height:18px;padding:4px 9px;cursor:pointer}',
+      '.awb-miniBtn:hover{background:var(--dsw-alias-bg-layer-2)}',
+      '.awb-sectionLabel{font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);letter-spacing:0.04em;text-transform:uppercase;margin:12px 0 5px}',
       /* timeline */
       '.awb-run{border:1px solid var(--dsw-alias-border-l1);border-radius:13px;background:var(--dsw-alias-bg-layer-1);margin-bottom:11px;overflow:hidden}',
       '.awb-runHead{display:flex;align-items:center;gap:9px;padding:10px 13px;cursor:pointer}',
@@ -277,6 +373,7 @@ window.__ModuleLoader__.load({
       '.awb-runName{flex:1 1 auto;min-width:0;font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.awb-runMeta{font-size:10.5px;color:var(--dsw-alias-label-secondary);font-family:ui-monospace,monospace;white-space:nowrap;font-variant-numeric:tabular-nums}',
       '.awb-runBody{border-top:1px solid var(--dsw-alias-border-l1);padding:11px 13px}',
+      '.awb-runSummary{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;margin-bottom:10px}',
       '.awb-station{margin-bottom:13px}',
       '.awb-station:last-child{margin-bottom:0}',
       '.awb-stationHead{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:650;margin-bottom:7px}',
@@ -776,7 +873,7 @@ window.__ModuleLoader__.load({
     }
 
     function NodeCard(props) {
-      const { node, info, status, current, t, onOpen } = props;
+      const { node, info, status, current, t, onOpen, onSelect } = props;
       if (node.kind === 'workspace') {
         return h('div', {
           className: 'awb-node awb-nodeWorkspace',
@@ -796,14 +893,26 @@ window.__ModuleLoader__.load({
       }
       return h('div', {
         className: `awb-node${current ? ' awb-nodeCurrent' : ''}`,
-        style: { left: node.x, top: node.y, width: NODE_W, height: NODE_H },
+        style: { left: node.x, top: node.y, width: NODE_W, height: NODE_H, cursor: 'pointer' },
+        role: 'button',
+        tabIndex: 0,
+        title: info.label,
+        onClick: () => onSelect(node.id),
+        onKeyDown: (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSelect(node.id);
+          }
+        },
       }, [
         h('div', { className: 'awb-nodeHead', key: 'head' }, [
           h(Dot, { status, key: 'dot' }),
           h('span', { className: 'awb-nodeLabel', title: info.label, key: 'label' }, info.label),
           h('button', {
             type: 'button', className: 'awb-nodeOpen', title: t('graph.open'),
-            'aria-label': t('graph.open'), onClick: () => onOpen(node.id), key: 'open',
+            'aria-label': t('graph.open'),
+            onClick: (event) => { event.stopPropagation(); onOpen(node.id); },
+            key: 'open',
           }, '💬'),
         ]),
         h('div', { className: 'awb-nodeMeta', key: 'meta1' }, [
@@ -824,6 +933,122 @@ window.__ModuleLoader__.load({
             `${t('duration')} ${formatDuration(info.duration)}`) : null,
           node.childCount > 0 ? h('span', { className: 'awb-tag', key: 'children' },
             t('graph.agents', { count: node.childCount })) : null,
+        ]),
+      ]);
+    }
+
+    function Kv(props) {
+      const { label, t, children } = props;
+      return h('div', { className: 'awb-kv' }, [
+        h('span', { className: 'awb-kvLabel', key: 'label' }, label),
+        h('span', { className: 'awb-kvValue', key: 'value' }, children),
+      ]);
+    }
+
+    /** Stage-lane canvas layout: one column per generation, nodes packed top-down. */
+    function layoutForest(forest, mode) {
+      const nodes = [];
+      const edges = [];
+      const columns = new Map();
+      let cursor = 0;
+      const walk = (node, depth, parentId) => {
+        const column = columns.get(depth) || { count: 0 };
+        const laneIndex = column.count;
+        column.count += 1;
+        columns.set(depth, column);
+        const order = mode === 'canvas' ? laneIndex : cursor;
+        cursor += 1;
+        nodes.push({
+          id: node.id, kind: node.kind, cwd: node.cwd, depth, laneIndex, order,
+          x: depth * (NODE_W + HGAP),
+          y: (mode === 'canvas' ? STAGE_H : 0) + order * (NODE_H + VGAP),
+          childCount: node.kids.length,
+        });
+        if (parentId !== null) edges.push([parentId, node.id]);
+        for (const kid of node.kids) walk(kid, depth + 1, node.id);
+      };
+      for (const root of forest) walk(root, 0, null);
+      const width = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.x + NODE_W));
+      const height = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.y + NODE_H));
+      return { nodes, edges, columns, width, height };
+    }
+
+    function stageLabel(depth, t) {
+      if (depth === 0) return t('graph.stage.workspace');
+      if (depth === 1) return t('graph.stage.lead');
+      if (depth === 2) return t('graph.stage.sub');
+      return t('graph.stage.gen', { n: depth });
+    }
+
+    function NodeDrawer(props) {
+      const { rec, info, status, lineage, t, now, onOpen, onClose, onSelect } = props;
+      const [copied, setCopied] = useState(false);
+      const parent = rec.parentId !== '' && lineage.byId[rec.parentId] !== undefined
+        ? lineage.byId[rec.parentId] : undefined;
+      const kids = lineage.children[rec.id] || [];
+      const copy = () => {
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(rec.id).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }).catch(() => {});
+          }
+        } catch {
+          // Clipboard can be unavailable; the id stays visible for manual copy.
+        }
+      };
+      return h(React.Fragment, null, [
+        h('div', { className: 'awb-drawerBackdrop', onClick: onClose, key: 'backdrop' }),
+        h('div', { className: 'awb-drawer', role: 'dialog', 'aria-label': t('drawer.title'), key: 'drawer' }, [
+          h('div', { className: 'awb-drawerHead' }, [
+            h(Dot, { status, key: 'dot' }),
+            h('span', { className: 'awb-drawerTitle', title: info.label, key: 'title' }, info.label),
+            h('button', {
+              type: 'button', className: 'awb-drawerClose', onClick: onClose,
+              'aria-label': 'Close', title: 'Close', key: 'close',
+            }, '×'),
+          ]),
+          h('div', { className: 'awb-drawerBody' }, [
+            h(Kv, { label: t('drawer.status'), t, key: 'status' }, [
+              h('span', { className: `awb-pill awb-pill--${status}`, key: 'pill' }, [
+                h('span', { className: `awb-dot awb-dot--${status}`, key: 'dot' }),
+                h('span', { className: 'awb-pillText', key: 'text' }, t(`status.${status}`)),
+              ]),
+            ]),
+            h(Kv, { label: t('drawer.model'), t, key: 'model' }, info.model || t('drawer.noModel')),
+            h(Kv, { label: t('drawer.mode'), t, key: 'mode' }, info.mode ? t(`mode.${info.mode}`) : '—'),
+            h(Kv, { label: t('drawer.tokens'), t, key: 'tokens' },
+              info.tokens !== undefined ? formatTokens(info.tokens) : '—'),
+            h(Kv, { label: t('drawer.duration'), t, key: 'duration' },
+              info.duration !== undefined ? formatDuration(info.duration) : '—'),
+            h(Kv, { label: t('drawer.parent'), t, key: 'parent' }, parent !== undefined
+              ? h('button', {
+                type: 'button', className: 'awb-miniBtn', key: 'parentBtn',
+                onClick: () => onSelect(parent.id),
+              }, displayTitle(parent))
+              : t('drawer.noParent')),
+            h(Kv, { label: t('drawer.children'), t, key: 'children' }, kids.length > 0
+              ? h('div', { style: { display: 'flex', gap: 5, flexWrap: 'wrap' } }, kids.slice(0, 8).map((kid) => h('button', {
+                type: 'button', className: 'awb-miniBtn', key: kid,
+                onClick: () => onSelect(kid), title: displayTitle(lineage.byId[kid]),
+              }, displayTitle(lineage.byId[kid]))))
+              : t('drawer.noChildren')),
+            h(Kv, { label: t('drawer.workspace'), t, key: 'cwd' }, rec.cwd || '—'),
+            h(Kv, { label: t('drawer.activity'), t, key: 'activity' },
+              rec.updatedAt ? formatRelative(rec.updatedAt, now) : '—'),
+            h(Kv, { label: t('drawer.sessionId'), t, key: 'id' }, rec.id),
+          ]),
+          h('div', { className: 'awb-drawerActions' }, [
+            h('button', {
+              type: 'button', className: 'awb-miniBtn', key: 'open',
+              onClick: () => onOpen(rec.id),
+            }, t('drawer.open')),
+            h('button', {
+              type: 'button', className: 'awb-miniBtn', key: 'copy',
+              onClick: copy,
+            }, copied ? t('drawer.copied') : t('drawer.copy')),
+          ]),
         ]),
       ]);
     }
@@ -861,6 +1086,9 @@ window.__ModuleLoader__.load({
       const [rootId, setRootId] = useState('');
       const [showAll, setShowAll] = useState(false);
       const [wide, setWide] = useState(true);
+      const [mode, setMode] = useState('canvas');
+      const [zoom, setZoom] = useState(1);
+      const [selectedId, setSelectedId] = useState(null);
       const wrapRef = useRef(null);
 
       useEffect(() => {
@@ -872,6 +1100,17 @@ window.__ModuleLoader__.load({
         observer.observe(el);
         return () => observer.disconnect();
       }, []);
+
+      useEffect(() => {
+        if (selectedId === null) return undefined;
+        const onKey = (event) => {
+          if (event.key !== 'Escape') return;
+          event.stopPropagation();
+          setSelectedId(null);
+        };
+        document.addEventListener('keydown', onKey, true);
+        return () => document.removeEventListener('keydown', onKey, true);
+      }, [selectedId]);
 
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const stats = useMemo(() => summarize(lineage, now), [lineage, now]);
@@ -921,26 +1160,8 @@ window.__ModuleLoader__.load({
         hiddenCount += Math.max(0, countNodes(buildFullTree(id)) - countNodes(buildTree(id)));
       }
 
-      const nodes = [];
-      const edges = [];
-      {
-        let cursor = 0;
-        const walk = (node, depth, parentId) => {
-          const index = cursor;
-          cursor += 1;
-          nodes.push({
-            id: node.id, kind: node.kind, cwd: node.cwd, depth, index,
-            x: depth * (NODE_W + HGAP), y: index * (NODE_H + VGAP),
-            childCount: node.kids.length,
-          });
-          if (parentId !== null) edges.push([parentId, node.id]);
-          for (const kid of node.kids) walk(kid, depth + 1, node.id);
-        };
-        for (const root of forest) walk(root, 0, null);
-      }
-
-      const width = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.x + NODE_W));
-      const height = nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.y + NODE_H));
+      const layout = layoutForest(forest, mode);
+      const { nodes, edges, columns, width, height } = layout;
       const nodeById = new Map(nodes.map((node) => [node.id, node]));
       const paths = [];
       for (const [from, to] of edges) {
@@ -954,6 +1175,40 @@ window.__ModuleLoader__.load({
         const middle = (x1 + x2) / 2;
         paths.push(`M ${x1} ${y1} C ${middle} ${y1}, ${middle} ${y2}, ${x2} ${y2}`);
       }
+
+      const stages = [...columns.entries()].sort((left, right) => left[0] - right[0]).map(([depth, column]) => {
+        const inColumn = nodes.filter((node) => node.depth === depth && node.kind !== 'workspace');
+        const counts = { running: 0, done: 0, failed: 0, idle: 0, waiting: 0 };
+        let tokens = 0;
+        let hasTokens = false;
+        for (const node of inColumn) {
+          counts[statusOfNode(node.id)] += 1;
+          const value = infoOf(node.id).tokens;
+          if (value !== undefined) { tokens += value; hasTokens = true; }
+        }
+        return { depth, count: inColumn.length, counts, tokens, hasTokens };
+      });
+
+      const zoomIn = () => setZoom((value) => Math.min(1.6, Math.round((value + 0.2) * 100) / 100));
+      const zoomOut = () => setZoom((value) => Math.max(0.5, Math.round((value - 0.2) * 100) / 100));
+      const resetZoom = () => setZoom(1);
+
+      const selectedRec = selectedId !== null && lineage.byId[selectedId] !== undefined
+        ? lineage.byId[selectedId] : null;
+
+      const stageBar = (counts) => {
+        const total = Math.max(1, counts.running + counts.done + counts.failed + counts.idle + counts.waiting);
+        const segment = (value, color, key) => value > 0
+          ? h('i', { style: { width: `${(value / total) * 100}%`, background: color }, key })
+          : null;
+        return h('span', { className: 'awb-stageBar' }, [
+          segment(counts.running, 'var(--dsw-alias-brand-primary)', 'running'),
+          segment(counts.done, 'var(--dsw-alias-state-success-primary)', 'done'),
+          segment(counts.failed, 'var(--dsw-alias-state-error-primary)', 'failed'),
+          segment(counts.idle, 'var(--dsw-alias-state-idle-primary)', 'idle'),
+          segment(counts.waiting, 'var(--dsw-alias-state-warn-primary)', 'waiting'),
+        ]);
+      };
 
       return h('div', { className: 'awb-view', ref: wrapRef }, [
         h('div', { className: 'awb-toolbar', key: 'toolbar' }, [
@@ -972,6 +1227,33 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', className: 'awb-btn', onClick: () => setShowAll((value) => !value), key: 'toggle' },
             showAll ? t('graph.activeOnly') : t('graph.showAll')),
           hiddenCount > 0 ? h('span', { className: 'awb-meta', key: 'hidden' }, t('graph.hidden', { count: hiddenCount })) : null,
+          h('span', { className: 'awb-toolbarSep', key: 'sep' }),
+          h('span', { className: 'awb-modeSwitch', key: 'mode' }, [
+            h('button', {
+              type: 'button', key: 'canvas',
+              className: `awb-modeBtn${mode === 'canvas' ? ' awb-modeBtnActive' : ''}`,
+              onClick: () => setMode('canvas'),
+            }, t('graph.mode.canvas')),
+            h('button', {
+              type: 'button', key: 'tree',
+              className: `awb-modeBtn${mode === 'tree' ? ' awb-modeBtnActive' : ''}`,
+              onClick: () => setMode('tree'),
+            }, t('graph.mode.tree')),
+          ]),
+          h('span', { className: 'awb-zoom', key: 'zoom' }, [
+            h('button', {
+              type: 'button', className: 'awb-zoomBtn', onClick: zoomOut,
+              title: t('graph.zoomOut'), 'aria-label': t('graph.zoomOut'), key: 'out',
+            }, '−'),
+            h('span', {
+              className: 'awb-zoomValue', key: 'value', title: t('graph.zoomReset'),
+              onClick: resetZoom, style: { cursor: 'pointer' },
+            }, `${Math.round(zoom * 100)}%`),
+            h('button', {
+              type: 'button', className: 'awb-zoomBtn', onClick: zoomIn,
+              title: t('graph.zoomIn'), 'aria-label': t('graph.zoomIn'), key: 'in',
+            }, '+'),
+          ]),
           h('span', { className: 'awb-legend', key: 'legend' }, [
             h('span', { className: 'awb-dot awb-dot--running', key: 'running' }), t('status.running'),
             h('span', { className: 'awb-dot awb-dot--done', key: 'done' }), t('status.done'),
@@ -983,8 +1265,8 @@ window.__ModuleLoader__.load({
           !hasTree
             ? EmptyState({ t, message: t('graph.empty'), icon: '🕸', hint: emptyHint })
             : wide
-              ? h('div', { className: 'awb-graphScroll', key: 'wide' }, [
-                h('div', { className: 'awb-graphCanvas', style: { width, height }, key: 'canvas' }, [
+              ? h('div', { className: 'awb-canvasWrap', key: 'wide' }, [
+                h('div', { className: 'awb-canvas', style: { width, height, zoom }, key: 'canvas' }, [
                   h('svg', {
                     className: 'awb-graphEdges', width, height,
                     viewBox: `0 0 ${width} ${height}`, fill: 'none',
@@ -992,12 +1274,31 @@ window.__ModuleLoader__.load({
                   }, paths.map((d, index) => h('path', {
                     key: index, d, stroke: 'var(--dsw-alias-border-l2)', strokeWidth: 1.5,
                   }))),
+                  mode === 'canvas'
+                    ? stages.map((stage) => h('div', {
+                      className: 'awb-stage', key: `stage-${stage.depth}`,
+                      style: {
+                        left: stage.depth * (NODE_W + HGAP), top: 0,
+                        width: NODE_W, height: STAGE_H - 8,
+                      },
+                    }, [
+                      h('span', { className: 'awb-stageTitle', key: 'title' },
+                        `${stage.depth + 1} · ${stageLabel(stage.depth, t)}`),
+                      h('span', { className: 'awb-stageMeta', key: 'meta' }, [
+                        h('span', { key: 'count' }, t('graph.stage.agents', { count: stage.count })),
+                        stage.hasTokens
+                          ? h('span', { key: 'tokens' }, `${t('tokens')} ${formatTokens(stage.tokens)}`)
+                          : null,
+                      ]),
+                      stageBar(stage.counts),
+                    ]))
+                    : null,
                   nodes.map((node) => h(NodeCard, {
                     key: node.id, node,
                     info: node.kind === 'workspace' ? { label: '' } : infoOf(node.id),
                     status: node.kind === 'workspace' ? 'idle' : statusOfNode(node.id),
                     current: currentId === node.id,
-                    t, onOpen: openSession,
+                    t, onOpen: openSession, onSelect: setSelectedId,
                   })),
                 ]),
               ])
@@ -1005,6 +1306,18 @@ window.__ModuleLoader__.load({
                 key: root.id, node: root, lineage, statusOfNode, infoOf, currentId, t, onOpen: openSession, depth: 0,
               }))),
         ]),
+        selectedRec !== null
+          ? h(NodeDrawer, {
+            rec: selectedRec,
+            info: nodeInfo(selectedRec, now),
+            status: statusOf(selectedRec),
+            lineage, t, now,
+            onOpen: openSession,
+            onClose: () => setSelectedId(null),
+            onSelect: (id) => setSelectedId(id),
+            key: 'drawer',
+          })
+          : null,
       ]);
     }
 
@@ -1013,13 +1326,26 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ */
 
     function RunCard(props) {
-      const { run, t, openSession } = props;
+      const { run, t, openSession, sessionById, now } = props;
       const [open, setOpen] = useState(false);
       const agents = Array.isArray(run.agents) ? run.agents : [];
       const failedCount = agents.filter((agent) => agent.status === 'failed').length;
+      const runningCount = agents.filter((agent) => agent.status === 'running').length;
+      const doneCount = agents.filter((agent) => agent.status === 'done').length;
       const running = !run.endedAt;
       const failed = failedCount > 0 || /error|fail|cancel/i.test(run.stopReason || '');
       const status = running ? 'running' : failed ? 'failed' : 'done';
+
+      let tokens = 0;
+      let hasTokens = false;
+      const infoOfChild = (childId) => {
+        const rec = childId ? sessionById(childId) : undefined;
+        return rec === undefined ? { model: undefined, tokens: undefined, duration: undefined } : nodeInfo(rec, now);
+      };
+      for (const agent of agents) {
+        const info = infoOfChild(agent.childId);
+        if (info.tokens !== undefined) { tokens += info.tokens; hasTokens = true; }
+      }
 
       const byPhase = new Map();
       for (const agent of agents) {
@@ -1039,23 +1365,49 @@ window.__ModuleLoader__.load({
         ]),
         open
           ? h('div', { className: 'awb-runBody', key: 'body' }, [
+            h('div', { className: 'awb-runSummary', key: 'summary' }, [
+              h('span', { key: 'agents' }, t('timeline.totalAgents', { count: agents.length })),
+              h('span', { key: 'done' }, `${doneCount} ✓`),
+              h('span', { key: 'running' }, `${runningCount} ◌`),
+              failedCount > 0 ? h('span', { key: 'failed', style: { color: 'var(--dsw-alias-state-error-primary)' } }, `${failedCount} ✗`) : null,
+              hasTokens
+                ? h('span', { key: 'tokens' }, t('timeline.totalTokens', { value: formatTokens(tokens) }))
+                : null,
+            ]),
             [...byPhase.entries()].map(([phase, list]) => h('div', { className: 'awb-station', key: phase }, [
               h('div', { className: 'awb-stationHead', key: 'head' }, [
                 h('span', { key: 'name' }, phase),
                 h('span', { className: 'awb-count', key: 'count' }, String(list.length)),
               ]),
-              list.map((agent) => h('div', {
-                key: agent.seq,
-                className: `awb-pillRow${agent.childId ? ' awb-pillRowClick' : ''}`,
-                title: agent.childId ? t('timeline.open') : undefined,
-                onClick: agent.childId ? () => openSession(agent.childId) : undefined,
-              }, [
-                h(Dot, {
-                  status: agent.status === 'done' ? 'done' : agent.status === 'failed' ? 'failed' : 'running',
-                  key: 'dot',
-                }),
-                h('span', { className: 'awb-pillLabel', key: 'label' }, agent.label),
-              ])),
+              list.map((agent) => {
+                const info = infoOfChild(agent.childId);
+                return h('div', {
+                  key: agent.seq,
+                  className: `awb-pillRow${agent.childId ? ' awb-pillRowClick' : ''}`,
+                  title: agent.childId ? t('timeline.open') : undefined,
+                  onClick: agent.childId ? () => openSession(agent.childId) : undefined,
+                }, [
+                  h(Dot, {
+                    status: agent.status === 'done' ? 'done' : agent.status === 'failed' ? 'failed' : 'running',
+                    key: 'dot',
+                  }),
+                  h('span', { className: 'awb-pillLabel', key: 'label' }, agent.label),
+                  info.model ? h('span', { className: 'awb-tag', key: 'model' }, `⚡ ${info.model}`) : null,
+                  info.tokens !== undefined
+                    ? h('span', { className: 'awb-tag', key: 'tokens' }, formatTokens(info.tokens))
+                    : null,
+                  info.duration !== undefined
+                    ? h('span', { className: 'awb-tag', key: 'duration' }, formatDuration(info.duration))
+                    : null,
+                  agent.childId
+                    ? h('button', {
+                      type: 'button', className: 'awb-nodeOpen', key: 'open',
+                      title: t('timeline.jump'), 'aria-label': t('timeline.jump'),
+                      onClick: (event) => { event.stopPropagation(); openSession(agent.childId); },
+                    }, '💬')
+                    : null,
+                ]);
+              }),
             ])),
             Array.isArray(run.logs) && run.logs.length > 0
               ? h('div', { className: 'awb-taskMeta', key: 'logs' },
@@ -1070,6 +1422,7 @@ window.__ModuleLoader__.load({
       const { snapshot, openSession, t, now, runs, runOk } = props;
       const lineage = useMemo(() => buildLineage(snapshot), [snapshot]);
       const agentEvents = useMemo(() => collectActivity(lineage, 40).filter((event) => event.kind === 'agent'), [lineage]);
+      const sessionById = (id) => lineage.byId[id];
       const totalRunAgents = runs.reduce((total, run) => total + (Array.isArray(run.agents) ? run.agents.length : 0), 0);
 
       return h('div', { className: 'awb-view' }, [
@@ -1085,7 +1438,9 @@ window.__ModuleLoader__.load({
           ]),
           runs.length === 0
             ? h('div', { className: 'awb-hint', key: 'runEmpty' }, t('timeline.runEmpty'))
-            : runs.slice().reverse().map((run) => h(RunCard, { key: run.id, run, t, openSession })),
+            : runs.slice().reverse().map((run) => h(RunCard, {
+              key: run.id, run, t, openSession, sessionById, now,
+            })),
           h('div', { className: 'awb-sectionTitle', key: 'railSection' }, [
             t('timeline.agentRail'),
             h('span', { className: 'awb-count', key: 'count' }, String(agentEvents.length)),

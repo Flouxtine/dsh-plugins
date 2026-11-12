@@ -1,6 +1,6 @@
 {
   "name": "@local/agent-workflow-board",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Live multi-agent workflow board: agent lineage graph, workflow run timeline and Agent Team task board.",
