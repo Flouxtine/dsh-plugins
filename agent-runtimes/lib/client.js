@@ -364,7 +364,10 @@ window.__ModuleLoader__.load({
 .ar-stat { border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); padding: 9px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
 .ar-statLabel { color: var(--dsw-alias-label-secondary); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-statValue { font-size: 20px; font-weight: 650; line-height: 1.15; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.ar-statValue--ok { color: var(--dsw-alias-state-success-primary); }
+/* Success green reads as a status colour but fails WCAG AA as text on white
+     (2.28:1). Darken it toward label-primary for anything rendered as text; the
+     raw token stays for non-text uses (dots) where contrast rules do not apply. */
+    .ar-statValue--ok { color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 52%, var(--dsw-alias-label-primary)); }
 .ar-statValue--warn { color: var(--dsw-alias-state-warn-primary); }
 
 .ar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; align-items: stretch; }
@@ -381,7 +384,9 @@ window.__ModuleLoader__.load({
 .ar-cardMeta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ar-cardFoot { display: flex; align-items: center; gap: 2px; padding: 0 8px 9px; min-width: 0; }
 .ar-spacer { flex: 1 1 auto; }
-.ar-linkBtn { appearance: none; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 11.5px; cursor: pointer; padding: 3px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+/* min-height 24px keeps the compact action row above the WCAG 2.5.8 minimum
+     target size; padding alone left these at 22px. */
+    .ar-linkBtn { appearance: none; border: none; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 11.5px; cursor: pointer; padding: 3px 7px; min-height: 24px; border-radius: 5px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .ar-linkBtn:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
 
 .ar-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
@@ -393,7 +398,7 @@ window.__ModuleLoader__.load({
 .ar-dot--stopped { background: transparent; border: 1.5px solid var(--dsw-alias-state-idle-primary); }
 
 .ar-pill { font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); white-space: nowrap; }
-.ar-pill--running { color: var(--dsw-alias-state-success-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 45%, transparent); }
+.ar-pill--running { color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 52%, var(--dsw-alias-label-primary)); border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 45%, transparent); }
 .ar-pill--waiting { color: var(--dsw-alias-state-warn-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 45%, transparent); }
 .ar-pill--error { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 45%, transparent); }
 .ar-pill--stopped { color: var(--dsw-alias-label-secondary); border-color: var(--dsw-alias-border-l1); }
