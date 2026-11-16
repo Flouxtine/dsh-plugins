@@ -21,6 +21,8 @@ github:Flouxtine/dsh-plugins#main&path:/quick-notes
 - `agent-runtimes` — one console for the mainstream agent runtimes on this machine
   (WorkBuddy, CodeBuddy CN, Codex/Codex++, Cursor and DeepSeek Harness) with
   approval reminders (`@local/agent-runtimes`).
+- `model-cascade` — a two-stage model flow: a strong model decides the route, then
+  a small or strong model executes the task (`@local/model-cascade`).
 
 ## Repository layout
 
@@ -41,7 +43,8 @@ github:Flouxtine/dsh-plugins#main&path:/quick-notes
 │   ├── CONTRIBUTING.md
 │   └── LICENSE
 ├── agent-workflow-board/…
-└── quick-notes/…
+├── quick-notes/…
+└── model-cascade/…
 ```
 
 ## Development

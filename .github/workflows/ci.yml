@@ -26,7 +26,9 @@ jobs:
             agent-workflow-board/lib/index.js \
             agent-workflow-board/lib/client.js \
             quick-notes/lib/index.js \
-            quick-notes/lib/client.js
+            quick-notes/lib/client.js \
+            model-cascade/lib/index.js \
+            model-cascade/lib/client.js
           do
             echo "checking $file"
             node --check "$file"
@@ -36,7 +38,7 @@ jobs:
         run: |
           node -e "
             const fs = require('node:fs');
-            for (const dir of ['agent-runtimes', 'agent-workflow-board', 'quick-notes']) {
+            for (const dir of ['agent-runtimes', 'agent-workflow-board', 'quick-notes', 'model-cascade']) {
               const manifest = JSON.parse(fs.readFileSync(dir + '/package.json', 'utf8'));
               if (manifest.main !== './lib/index.js') throw new Error(dir + ': unexpected main');
               if (manifest.exports['.'].default !== './lib/index.js') throw new Error(dir + ': unexpected export');
