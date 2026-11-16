@@ -1769,10 +1769,14 @@ window.__ModuleLoader__.load({
       useEffect(() => () => {
         if (storeState.reminderTimer !== undefined) clearTimeout(storeState.reminderTimer);
       }, []);
-      if (reminder === null) return null;
+      /* The live region must exist before the reminder text arrives — a region
+         that mounts together with its content is not reliably announced. Keep it
+         always present and visually hidden, and inject the text on change. */
+      const announcement = reminder === null ? '' : `${t('reminder.title')} · ${reminder.runtimeName}. ${reminder.reason}`;
       return h('div', { className: 'ar-toastWrap' }, [
         h('style', { dangerouslySetInnerHTML: { __html: TOAST_CSS }, key: 'style' }),
-        h('div', { className: 'ar-toast', key: 'toast', role: 'status', 'aria-live': 'polite' }, [
+        h('div', { className: 'ar-axonLabel', key: 'live', role: 'status', 'aria-live': 'polite' }, announcement),
+        reminder === null ? null : h('div', { className: 'ar-toast', key: 'toast' }, [
           h('div', { className: 'ar-toastHead', key: 'head' }, [
             h('div', { key: 'text' }, [
               h('div', { className: 'ar-toastTitle', key: 'title' }, `${t('reminder.title')} · ${reminder.runtimeName}`),
