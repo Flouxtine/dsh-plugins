@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# DSH local profile state (skill virtualenvs, runtime bindings)
+.dsh/
+
+# Session-local scratch
+*.log
