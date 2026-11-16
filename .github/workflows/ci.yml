@@ -34,6 +34,23 @@ jobs:
             node --check "$file"
           done
 
+      - name: Check style hygiene
+        run: |
+          set -e
+          # Mechanical style guard: no tabs for indentation, no trailing
+          # whitespace. Both are zero-dependency and match the documented code
+          # style in each bundle's CONTRIBUTING.md.
+          offenders=$(grep -rlP '^\t|\s+$' \
+            --include='*.js' --include='*.json' --include='*.md' --include='*.yml' \
+            agent-runtimes agent-workflow-board quick-notes model-cascade \
+            .github 2>/dev/null || true)
+          if [ -n "$offenders" ]; then
+            echo "Style violations (tabs for indent or trailing whitespace):"
+            echo "$offenders"
+            exit 1
+          fi
+          echo "style hygiene ok"
+
       - name: Validate package manifests
         run: |
           node -e "
