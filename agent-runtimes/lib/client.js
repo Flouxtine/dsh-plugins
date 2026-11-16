@@ -789,7 +789,7 @@ window.__ModuleLoader__.load({
       const { approvals, now, titleOf, onReview, onDismiss, onDecide } = props;
       if (approvals.length === 0) return null;
       return h('div', { className: 'ar-approvals', role: 'region', 'aria-label': t('approval.title') }, [
-        h('div', { className: 'ar-meta', key: 'head' }, `${t('approval.title')} · ${approvals.length}`),
+        h('div', { className: 'ar-meta', key: 'head', role: 'heading', 'aria-level': 3 }, `${t('approval.title')} · ${approvals.length}`),
         approvals.map((row) => {
           const reason = row.runtimeId === 'dsh'
             ? (titleOf(row.sessionId) || row.reason || t('approval.pendingSession'))
@@ -1160,7 +1160,7 @@ window.__ModuleLoader__.load({
       const { events, now } = props;
       const list = (Array.isArray(events) ? events : []).slice(0, 8);
       return h('div', { className: 'ar-activity' }, [
-        h('div', { className: 'ar-sectionTitle', key: 'title' }, [
+        h('div', { className: 'ar-sectionTitle', key: 'title', role: 'heading', 'aria-level': 3 }, [
           t('activity.title'),
           list.length > 0 ? h('span', { className: 'ar-meta', key: 'count' }, String(list.length)) : null,
         ]),
@@ -1674,7 +1674,7 @@ window.__ModuleLoader__.load({
         h('style', { dangerouslySetInnerHTML: { __html: CSS }, key: 'style' }),
         h('div', { className: 'ar-header', key: 'header' }, [
           h('div', { className: 'ar-titleBlock', key: 'titleBlock' }, [
-            h('span', { className: 'ar-title', key: 'title' }, t('panel')),
+            h('span', { className: 'ar-title', key: 'title', role: 'heading', 'aria-level': 2 }, t('panel')),
             h('span', { className: 'ar-meta', key: 'meta' },
               `${t('header.runtimes', { count: installed.length })} · ${t('header.pending', { count: approvals.length })}${snapshotAge > POLL_MS * 4 ? ` · ${t('header.offline')}` : ''}`),
           ]),
