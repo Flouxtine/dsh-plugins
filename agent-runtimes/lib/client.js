@@ -448,6 +448,52 @@ window.__ModuleLoader__.load({
     /* store                                                            */
     /* ---------------------------------------------------------------- */
 
+    /**
+     * A projection of the snapshot that the rendering actually depends on.
+     * `now` is excluded because it advances every poll, and session activity
+     * timestamps are bucketed to the minute so an idle board produces the same
+     * fingerprint and skips the re-render entirely.
+     */
+    function fingerprintOf(snapshot) {
+      const bucket = (value) => (typeof value === 'number' ? Math.floor(value / 60000) : value);
+      const sessionsOf = (runtime) => (Array.isArray(runtime.sessions) ? runtime.sessions : []).map((session) => ({
+        sessionId: session.sessionId,
+        title: session.title,
+        status: session.status,
+        model: session.model,
+        cwd: session.cwd,
+        at: bucket(session.lastActivityAt || session.updatedAt),
+      }));
+      return JSON.stringify({
+        runtimes: (Array.isArray(snapshot.runtimes) ? snapshot.runtimes : []).map((runtime) => ({
+          id: runtime.id,
+          name: runtime.name,
+          installed: runtime.installed,
+          running: runtime.running,
+          status: runtime.status,
+          builtinName: runtime.builtinName,
+          active: runtime.active === null || runtime.active === undefined ? null : {
+            sessionId: runtime.active.sessionId,
+            title: runtime.active.title,
+            model: runtime.active.model,
+            cwd: runtime.active.cwd,
+            status: runtime.active.status,
+            tokens: runtime.active.tokens,
+            progress: runtime.active.progress,
+            at: bucket(runtime.active.lastActivityAt || runtime.active.updatedAt),
+          },
+          sessions: sessionsOf(runtime),
+          approvals: Array.isArray(runtime.approvals) ? runtime.approvals : [],
+          extra: runtime.extra,
+        })),
+        approvals: snapshot.approvals,
+        names: snapshot.names,
+        intercept: snapshot.intercept,
+        accessibility: snapshot.accessibility,
+        activity: Array.isArray(snapshot.activity) ? snapshot.activity : [],
+      });
+    }
+
     const store = {
       snapshot: { now: Date.now(), runtimes: [], approvals: [] },
       reminder: null,
@@ -460,6 +506,8 @@ window.__ModuleLoader__.load({
       reminderTimer: undefined,
       messageTimer: undefined,
       inFlight: false,
+      fingerprint: undefined,
+      lastRenderAt: 0,
 
       start() {
         if (this.timer !== undefined) return;
@@ -488,12 +536,25 @@ window.__ModuleLoader__.load({
           const response = await fetch(`${API}/snapshot`, { cache: 'no-store' });
           if (!response.ok) throw new Error(`http-${response.status}`);
           const snapshot = await response.json();
-          this.apply(snapshot);
+          // A poll that changed nothing must not re-render the whole board; the
+          // host only sends volatile timestamps when a session is really active.
+          const fingerprint = fingerprintOf(snapshot);
+          const changed = fingerprint !== this.fingerprint;
+          if (changed) {
+            this.fingerprint = fingerprint;
+            this.apply(snapshot);
+          } else if (this.snapshot !== null && typeof this.snapshot === 'object') {
+            this.snapshot.now = snapshot.now;
+          }
+          const age = Date.now() - (this.snapshot !== null && typeof this.snapshot === 'object' ? this.snapshot.now : 0);
+          if (changed || age > POLL_MS * 6) {
+            this.lastRenderAt = Date.now();
+            this.emit();
+          }
         } catch {
           // Keep the last good snapshot; the header shows the age.
         } finally {
           this.inFlight = false;
-          this.emit();
         }
       },
       apply(snapshot) {
