@@ -525,7 +525,78 @@ function codeBuddyPaths() {
     queue: join(extension, 'message-queue'),
     edits: join(extension, 'edit-sessions'),
     todos: join(extension, 'todos'),
+    logs: join(dir, 'logs'),
   };
+}
+
+/**
+ * Tool approvals CodeBuddy currently owes the user, read from its extension
+ * log. The extension appends a `pendingDialogToolIds changed:` line whenever a
+ * conversation's set of tools awaiting confirmation changes — non-empty `ids`
+ * means a decision is owed, an empty `[]` means it was resolved. That line is
+ * the only place this approval state reaches disk; the live decision itself
+ * lives in the webview.
+ *
+ * The state is per window (a conversation is bound to the window it opened in),
+ * so every window of the newest launch is scanned and the last line wins.
+ * Only the current, un-rotated log of each window is read, and only its tail,
+ * to keep a frequent poll cheap.
+ */
+function codeBuddyPendingApprovals(paths) {
+  const launchDirs = listDir(paths.logs)
+    .filter((name) => /^\d{8}T\d{6}$/.test(name))
+    .sort();
+  const launchDir = launchDirs[launchDirs.length - 1];
+  if (launchDir === undefined) return [];
+
+  const windowRoot = join(paths.logs, launchDir);
+  const pendingByConversation = new Map();
+  const toolNames = new Map();
+  // `execute_command` tells the user nothing; the parsed `command` argument just
+  // above the confirmation request is what they actually need to judge.
+  const commands = new Map();
+  for (const windowDir of listDir(windowRoot)) {
+    if (!windowDir.startsWith('window')) continue;
+    const logDir = join(windowRoot, windowDir, 'exthost', 'Tencent-Cloud.coding-copilot');
+    for (const file of listDir(logDir)) {
+      // Only the live log; the rotated `*.N.log` files are earlier generations
+      // whose approvals were already decided before this launch.
+      if (file !== '腾讯云代码助手.log') continue;
+      for (const line of readTailLines(join(logDir, file), 2000)) {
+        const asked = line.match(/请求用户确认: (\S+) - ([^-]+?) -/);
+        if (asked !== null) {
+          toolNames.set(asked[1], asked[2].trim());
+          continue;
+        }
+        const argument = line.match(/参数解析完成: (\S+) - 参数: command - 值: (.+)$/);
+        if (argument !== null) {
+          // Long values are logged as `<string length=N> <preview>`; the length
+          // marker is log noise, the preview is the readable part.
+          const value = argument[2].replace(/^<string length=\d+>\s*/, '').trim();
+          commands.set(argument[1], value);
+          continue;
+        }
+        const changed = line.match(/pendingDialogToolIds changed: conversationId=(\S+?), ids=\[([^\]]*)\]/);
+        if (changed !== null) {
+          const ids = changed[2].trim() === '' ? [] : changed[2].split(',').map((id) => id.trim()).filter((id) => id !== '');
+          pendingByConversation.set(changed[1], ids);
+        }
+      }
+    }
+  }
+
+  const approvals = [];
+  for (const [conversationId, ids] of pendingByConversation) {
+    for (const callId of ids) {
+      approvals.push({
+        conversationId,
+        callId,
+        tool: toolNames.get(callId) || 'tool approval',
+        command: commands.get(callId) || '',
+      });
+    }
+  }
+  return approvals;
 }
 
 /** The extension names workspace history directories with base64url(path). */
@@ -676,7 +747,18 @@ async function collectCodeBuddy() {
     }
   }
 
-  return {
+  // Each pending confirmation is a distinct tool call, so the id carries the
+// call as well as the conversation — two waiting tools in one conversation are
+// two approvals, not one.
+const pendingApprovals = codeBuddyPendingApprovals(paths).map((pending) => ({
+  id: `codebuddy:${pending.conversationId}:${pending.callId}`,
+  tool: pending.tool,
+  reason: pending.command !== '' ? pending.command : pending.tool,
+  since: now,
+  sessionId: pending.conversationId,
+}));
+
+return {
     id: 'codebuddy',
     name: 'CodeBuddy CN',
     installed: true,
@@ -684,7 +766,7 @@ async function collectCodeBuddy() {
     status: running ? (runningCount > 0 ? 'running' : 'idle') : 'stopped',
     active: activeSession,
     sessions: sessions.slice(0, 12),
-    approvals: [],
+    approvals: pendingApprovals,
     extra: { source: 'storage', mode, conversations: sessions.length },
   };
 }
