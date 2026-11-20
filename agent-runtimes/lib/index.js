@@ -34,6 +34,10 @@ const POLL_MS = 3000;
 const HEARTBEAT_MS = 3 * 60 * 1000;
 const SESSION_ACTIVE_MS = 10 * 60 * 1000;
 const APPROVAL_WINDOW_MS = 48 * 60 * 60 * 1000;
+// An Axon run that paused on `pending_approval` stays in the panel only while
+// it is fresh; Axon has no separate resolved record, so a stale waiting row
+// would otherwise linger as a phantom approval forever.
+const AXON_APPROVAL_WINDOW_MS = 24 * 60 * 60 * 1000;
 const LIVE_FILE_MS = 2 * 60 * 1000;
 const SQLITE_BUSY_MS = 2000;
 const TAIL_BYTES = 512 * 1024;
@@ -448,12 +452,15 @@ async function collectWorkBuddy() {
   // Only a session the app itself calls active counts as the current one; a
   // recently finished session must not be presented as "now".
   const active = rows.find((row) => row.status === 'working')
-    || rows.find((row) => row.status === 'pending')
+    || rows.find((row) => row.unread)
     || null;
 
-  // A WorkBuddy session in `pending` is waiting on the user (the agent asked a
-  // question or is requesting a decision); that is the clearest reminder.
-  const pendingSessions = rows.filter((row) => row.status === 'pending'
+  // WorkBuddy flags a session `unread` when the agent has stopped and is
+  // waiting on the user to read the result or answer a question. That is the
+  // app's own "needs you" signal — its status enum is active/working/completed/
+  // error/archived and has no `pending`, so the unread flag is the only reliable
+  // reminder that a decision is owed.
+  const pendingSessions = rows.filter((row) => row.unread
     && now - (row.updatedAt || 0) < APPROVAL_WINDOW_MS);
   const pendingApprovals = pendingSessions.map((row) => ({
     id: `session:${row.sessionId}`,
@@ -1361,18 +1368,50 @@ async function collectAxon(ctx) {
     updatedAt: session.updatedAt || 0,
   }));
 
+  // A run that came back `pending_approval` is waiting on a decision. Surface
+  // each waiting session as an approval so the console can remind and decide
+  // inline; the call_ids from the last approval notice identify the tools.
+  const now = Date.now();
+  const approvals = ready
+    ? sessions
+      .filter((session) => session.status === 'waiting'
+        && now - session.updatedAt < AXON_APPROVAL_WINDOW_MS)
+      .map((session) => ({
+        id: `session:${session.sessionId}`,
+        tool: 'tool approval',
+        reason: session.title,
+        since: session.updatedAt,
+        sessionId: session.sessionId,
+      }))
+    : [];
+  const waiting = approvals.length > 0;
+  const running = sessions.some((session) => session.status === 'running');
+  const status = !ready
+    ? 'stopped'
+    : waiting
+      ? 'waiting'
+      : running
+        ? 'running'
+        : 'idle';
+
   return {
     id: 'axon',
     name: 'Axon',
     app: '',
     installed: ready,
     running: ready,
-    status: ready ? 'idle' : 'stopped',
+    status,
     active: ready
-      ? { sessionId: state.lastSession, title: state.lastReply ? shortTitle(state.lastReply) : '', model: 'axon', cwd: baseUrl, status: 'idle' }
+      ? {
+        sessionId: state.lastSession,
+        title: state.lastReply ? shortTitle(state.lastReply) : '',
+        model: 'axon',
+        cwd: baseUrl,
+        status: waiting ? 'waiting' : (running ? 'running' : 'idle'),
+      }
       : null,
     sessions,
-    approvals: [],
+    approvals,
     extra: {
       baseUrl,
       teamId,
@@ -1438,10 +1477,22 @@ function upsertAxonSession(sessionId, reply, status, task) {
   const sessions = [...state.sessions];
   const at = sessions.findIndex((session) => session.sessionId === sessionId);
   const title = task !== '' ? shortTitle(task) : shortTitle(reply);
-  const row = { sessionId, title, status: status === 'pending_approval' ? 'waiting' : 'idle', updatedAt: Date.now() };
+  // Axon reports session_status as running | pending_approval | completed. Map
+  // each onto the panel's own vocabulary instead of collapsing everything that
+  // is not an approval into `idle` — a finished run must stay distinguishable
+  // from one that never started.
+  const row = { sessionId, title, status: axonSessionStatus(status), updatedAt: Date.now() };
   if (at >= 0) sessions[at] = { ...sessions[at], ...row };
   else sessions.unshift(row);
   writeAxonState({ sessions: sessions.slice(0, 20), lastReply: reply });
+}
+
+/** Map an Axon `session_status` onto the panel's runtime status vocabulary. */
+function axonSessionStatus(status) {
+  if (status === 'pending_approval') return 'waiting';
+  if (status === 'completed') return 'completed';
+  if (status === 'running') return 'running';
+  return 'idle';
 }
 
 /**
